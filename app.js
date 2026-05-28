@@ -273,18 +273,22 @@
     const kind = cloudKindFromKey(key);
     if (!kind) return;
     if (kind === "memory") {
-      const { error } = await state.supabase.from("app_items").upsert({
+      const { error } = await withTimeout(state.supabase.from("app_items").upsert({
         id: "memory",
         user_id: state.user.id,
         kind,
         data: value,
         updated_at: new Date().toISOString()
-      });
+      }), 15000, "保存标签记忆");
       if (error) console.warn(error.message);
       return;
     }
     const items = Array.isArray(value) ? value : [];
-    const deleted = await state.supabase.from("app_items").delete().eq("kind", kind).eq("user_id", state.user.id);
+    const deleted = await withTimeout(
+      state.supabase.from("app_items").delete().eq("kind", kind).eq("user_id", state.user.id),
+      15000,
+      `清理${kind}`
+    );
     if (deleted.error) {
       console.warn(deleted.error.message);
       return;
@@ -297,8 +301,29 @@
       data: item,
       updated_at: new Date(item.updatedAt || item.createdAt || Date.now()).toISOString()
     }));
-    const { error } = await state.supabase.from("app_items").insert(rows);
+    const { error } = await withTimeout(state.supabase.from("app_items").insert(rows), 20000, `保存${kind}`);
     if (error) console.warn(error.message);
+  }
+
+  async function replaceCloudSnapshot(snapshot) {
+    if (!state.supabase || !state.user) return;
+    await state.cloudSavePromise;
+    state.cloudSavePromise = Promise.resolve();
+    await persistCloudNow("pm.todos", snapshot.todos);
+    await persistCloudNow("pm.goals", snapshot.goals);
+    await persistCloudNow("pm.materials", snapshot.materials);
+    await persistCloudNow("pm.ideas", snapshot.ideas);
+    await persistCloudNow("pm.docs", snapshot.docs);
+    await persistCloudNow("pm.materialMemory", snapshot.memory);
+  }
+
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error(`${label}超时，请检查网络或 Supabase 设置`)), ms);
+      })
+    ]);
   }
 
   function cloudKindFromKey(key) {
@@ -391,30 +416,40 @@
       return;
     }
     if (!confirm("导入后会覆盖当前账号的云端数据，确认继续吗？")) return;
-    updateCloudUI("正在导入数据到当前账号...");
-    const backup = JSON.parse(await file.text());
-    const files = backup.files || {};
-    for (const [key, meta] of Object.entries(files)) {
-      const blob = dataUrlToBlob(meta.dataUrl, meta.type);
-      const restoredFile = new File([blob], meta.name || key, { type: meta.type || blob.type });
-      await putCloudFile(key, restoredFile);
-      await putLocalFile(key, restoredFile);
+    try {
+      updateCloudUI("正在读取备份文件...");
+      const backup = JSON.parse(await file.text());
+      const files = backup.files || {};
+      for (const [key, meta] of Object.entries(files)) {
+        const blob = dataUrlToBlob(meta.dataUrl, meta.type);
+        const restoredFile = new File([blob], meta.name || key, { type: meta.type || blob.type });
+        await putCloudFile(key, restoredFile);
+        await putLocalFile(key, restoredFile);
+      }
+      const snapshot = {
+        todos: Array.isArray(backup.todos) ? backup.todos : [],
+        goals: Array.isArray(backup.goals) ? backup.goals : [],
+        materials: Array.isArray(backup.materials) ? backup.materials : [],
+        ideas: Array.isArray(backup.ideas) ? backup.ideas : [],
+        docs: Array.isArray(backup.docs) ? backup.docs : [],
+        memory: backup.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }
+      };
+      state.todos = snapshot.todos;
+      state.goals = snapshot.goals;
+      state.materials = snapshot.materials;
+      state.ideas = snapshot.ideas;
+      state.docs = snapshot.docs;
+      state.memory = snapshot.memory;
+      saveLocalSnapshot();
+      renderAll();
+      updateCloudUI("本地已恢复，正在同步云端...");
+      await replaceCloudSnapshot(snapshot);
+      updateCloudUI("数据已导入并同步到云端。");
+    } catch (error) {
+      console.error(error);
+      updateCloudUI("导入没有完成，请查看提示后重试。");
+      alert(error.message || "导入失败，请刷新页面后重试。");
     }
-    state.todos = Array.isArray(backup.todos) ? backup.todos : [];
-    state.goals = Array.isArray(backup.goals) ? backup.goals : [];
-    state.materials = Array.isArray(backup.materials) ? backup.materials : [];
-    state.ideas = Array.isArray(backup.ideas) ? backup.ideas : [];
-    state.docs = Array.isArray(backup.docs) ? backup.docs : [];
-    state.memory = backup.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] };
-    save("pm.todos", state.todos);
-    save("pm.goals", state.goals);
-    save("pm.materials", state.materials);
-    save("pm.ideas", state.ideas);
-    save("pm.docs", state.docs);
-    save("pm.materialMemory", state.memory);
-    await state.cloudSavePromise;
-    updateCloudUI("数据已导入并同步到云端。");
-    renderAll();
   }
 
   async function copyLocalFileToCloud(key) {
@@ -1758,13 +1793,13 @@
   }
 
   async function putCloudFile(key, file) {
-    const { error } = await state.supabase.storage
+    const { error } = await withTimeout(state.supabase.storage
       .from("personal-assets")
       .upload(cloudFilePath(key), file, {
         cacheControl: "3600",
         upsert: true,
         contentType: file.type || "application/octet-stream"
-      });
+      }), 30000, "上传附件");
     if (error) throw error;
   }
 
