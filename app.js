@@ -26,6 +26,7 @@
     cloudReady: false,
     cloudLoading: false,
     cloudSavePromise: Promise.resolve(),
+    cloudSessionChecked: false,
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
     goals: loadArray("pm.goals"),
@@ -55,7 +56,7 @@
 
   document.addEventListener("DOMContentLoaded", init);
 
-  async function init() {
+  function init() {
     $("#todayPill").textContent = new Intl.DateTimeFormat("zh-CN", {
       month: "long",
       day: "numeric",
@@ -71,9 +72,10 @@
     bindBrain();
     bindMemoryInputs();
     seedMaterialMemory();
-    await restoreCloudSession();
     seedOnboardingGoals();
     renderAll();
+    updateCloudUI("已加载本地缓存，正在后台检查登录状态。");
+    restoreCloudSession();
   }
 
   function initSupabase() {
@@ -82,7 +84,14 @@
       updateCloudUI();
       return;
     }
-    state.supabase = window.supabase.createClient(config.url, config.anonKey);
+    state.supabase = window.supabase.createClient(config.url, config.anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage
+      }
+    });
     state.cloudReady = true;
   }
 
@@ -102,14 +111,23 @@
 
   async function restoreCloudSession() {
     if (!state.supabase) return;
-    const { data } = await state.supabase.auth.getSession();
-    state.user = data.session?.user || null;
-    if (state.user) await loadCloudData();
-    updateCloudUI();
+    try {
+      const { data } = await withTimeout(state.supabase.auth.getSession(), 8000, "恢复登录状态");
+      state.user = data.session?.user || null;
+      state.cloudSessionChecked = true;
+      updateCloudUI(state.user ? "已恢复登录，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
+      if (state.user) loadCloudData({ background: true });
+    } catch (error) {
+      state.cloudSessionChecked = true;
+      console.warn(error.message);
+      updateCloudUI("自动恢复登录超时，已继续使用本地缓存。需要同步时请重新登录。");
+    }
     state.supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (_event === "INITIAL_SESSION" && state.cloudSessionChecked) return;
+      const previousUserId = state.user?.id || "";
       state.user = session?.user || null;
-      updateCloudUI();
-      if (state.user) await loadCloudData();
+      updateCloudUI(state.user ? "登录状态已恢复，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
+      if (state.user && state.user.id !== previousUserId) loadCloudData({ background: true });
     });
   }
 
@@ -121,14 +139,20 @@
       alert("请填写邮箱和密码");
       return;
     }
-    const { data, error } = await state.supabase.auth.signInWithPassword({ email, password });
+    updateCloudUI("正在登录...");
+    const { data, error } = await withTimeout(
+      state.supabase.auth.signInWithPassword({ email, password }),
+      15000,
+      "登录"
+    );
     if (error) {
+      updateCloudUI();
       alert(error.message);
       return;
     }
     state.user = data.user;
-    await loadCloudData();
-    updateCloudUI();
+    updateCloudUI("登录成功，正在后台同步云端数据。");
+    loadCloudData({ background: true });
   }
 
   async function signUp() {
@@ -139,8 +163,14 @@
       alert("请填写邮箱，并设置至少 6 位密码");
       return;
     }
-    const { data, error } = await state.supabase.auth.signUp({ email, password });
+    updateCloudUI("正在注册...");
+    const { data, error } = await withTimeout(
+      state.supabase.auth.signUp({ email, password }),
+      15000,
+      "注册"
+    );
     if (error) {
+      updateCloudUI();
       alert(error.message);
       return;
     }
@@ -152,7 +182,7 @@
 
   async function signOut() {
     if (!state.supabase) return;
-    await state.supabase.auth.signOut();
+    await withTimeout(state.supabase.auth.signOut(), 10000, "退出登录").catch((error) => console.warn(error.message));
     state.user = null;
     state.goals = loadArray("pm.goals");
     state.todos = loadArray("pm.todos");
@@ -184,18 +214,46 @@
     return false;
   }
 
-  async function loadCloudData() {
+  async function loadCloudData(options = {}) {
     if (!state.supabase || !state.user || state.cloudLoading) return;
+    const localSnapshot = readLocalSnapshot();
     state.cloudLoading = true;
-    updateCloudUI("正在读取云端数据...");
-    const { data, error } = await state.supabase
-      .from("app_items")
-      .select("kind,id,data,updated_at")
-      .order("updated_at", { ascending: false });
+    updateCloudUI(options.background ? "正在后台读取云端数据，本地缓存会先保留。" : "正在读取云端数据...");
+    let response;
+    try {
+      response = await withTimeout(
+        state.supabase
+          .from("app_items")
+          .select("kind,id,data,updated_at")
+          .order("updated_at", { ascending: false }),
+        15000,
+        "读取云端数据"
+      );
+    } catch (error) {
+      state.cloudLoading = false;
+      console.warn(error.message);
+      state.todos = localSnapshot.todos;
+      state.goals = localSnapshot.goals;
+      state.materials = localSnapshot.materials;
+      state.ideas = localSnapshot.ideas;
+      state.docs = localSnapshot.docs;
+      state.memory = localSnapshot.memory;
+      renderAll();
+      updateCloudUI("云端读取超时，已继续使用本地缓存；你可以稍后点“刷新云端数据”。");
+      return;
+    }
     state.cloudLoading = false;
+    const { data, error } = response;
     if (error) {
-      alert(`读取云端数据失败：${error.message}`);
-      updateCloudUI("云端读取失败，请检查 Supabase 表结构是否已执行。");
+      console.warn(error.message);
+      state.todos = localSnapshot.todos;
+      state.goals = localSnapshot.goals;
+      state.materials = localSnapshot.materials;
+      state.ideas = localSnapshot.ideas;
+      state.docs = localSnapshot.docs;
+      state.memory = localSnapshot.memory;
+      renderAll();
+      updateCloudUI(`云端读取失败，已保留本地缓存：${error.message}`);
       return;
     }
     const grouped = {
@@ -214,7 +272,6 @@
       }
     });
     const hasCloudData = Boolean((data || []).length);
-    const localSnapshot = readLocalSnapshot();
     if (!hasCloudData && hasAnyLocalData(localSnapshot)) {
       state.todos = localSnapshot.todos;
       state.goals = localSnapshot.goals;
@@ -280,7 +337,7 @@
         data: value,
         updated_at: new Date().toISOString()
       }), 15000, "保存标签记忆");
-      if (error) console.warn(error.message);
+      if (error) throw new Error(error.message);
       return;
     }
     const items = Array.isArray(value) ? value : [];
@@ -290,8 +347,7 @@
       `清理${kind}`
     );
     if (deleted.error) {
-      console.warn(deleted.error.message);
-      return;
+      throw new Error(deleted.error.message);
     }
     if (!items.length) return;
     const rows = items.map((item) => ({
@@ -302,7 +358,7 @@
       updated_at: new Date(item.updatedAt || item.createdAt || Date.now()).toISOString()
     }));
     const { error } = await withTimeout(state.supabase.from("app_items").insert(rows), 20000, `保存${kind}`);
-    if (error) console.warn(error.message);
+    if (error) throw new Error(error.message);
   }
 
   async function replaceCloudSnapshot(snapshot) {
