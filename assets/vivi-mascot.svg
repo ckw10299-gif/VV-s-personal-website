@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 360" role="img" aria-label="Vivi mascot">
+  <defs>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="145%">
+      <feDropShadow dx="0" dy="10" stdDeviation="10" flood-color="#8b5a1b" flood-opacity=".16"/>
+    </filter>
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4a8"/>
+      <stop offset=".55" stop-color="#ffe27b"/>
+      <stop offset="1" stop-color="#ffd268"/>
+    </linearGradient>
+    <linearGradient id="dress" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffd7df"/>
+      <stop offset="1" stop-color="#f6aebe"/>
+    </linearGradient>
+    <linearGradient id="chair" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dff9ff"/>
+      <stop offset="1" stop-color="#a9dceb"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="8" y="12" width="504" height="330" rx="46" fill="#fffaf0" opacity=".82"/>
+  <path d="M68 289 C128 248 207 274 281 244 C355 214 401 231 462 188" fill="none" stroke="#7b5531" stroke-width="4" stroke-linecap="round" opacity=".42"/>
+
+  <g filter="url(#softShadow)">
+    <path d="M175 178 C162 118 191 70 259 68 C321 66 354 112 345 181 C299 203 229 204 175 178Z" fill="url(#chair)" stroke="#7b5531" stroke-width="5"/>
+    <path d="M196 92 C202 126 197 160 181 190" fill="none" stroke="#ffffff" stroke-width="12" opacity=".35" stroke-linecap="round"/>
+    <path d="M328 93 C320 126 326 159 340 190" fill="none" stroke="#ffffff" stroke-width="12" opacity=".35" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M146 114 C104 115 90 158 110 188 C89 206 97 248 132 252 C165 257 188 228 183 194 C205 174 190 117 146 114Z" fill="url(#hair)" stroke="#65452a" stroke-width="5"/>
+    <path d="M374 114 C416 115 430 158 410 188 C431 206 423 248 388 252 C355 257 332 228 337 194 C315 174 330 117 374 114Z" fill="url(#hair)" stroke="#65452a" stroke-width="5"/>
+    <path d="M184 88 C204 45 314 45 335 88 C365 144 328 200 260 200 C192 200 154 145 184 88Z" fill="url(#hair)" stroke="#65452a" stroke-width="5"/>
+    <path d="M199 111 C222 89 248 78 286 84 C315 90 333 109 341 132 C327 129 314 121 302 107 C296 127 286 140 269 146 C276 128 270 117 257 107 C242 132 220 146 195 151 C191 138 192 124 199 111Z" fill="#fff2a3" stroke="#65452a" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M151 102 C161 91 177 88 189 97" fill="none" stroke="#9db6e8" stroke-width="12" stroke-linecap="round"/>
+    <path d="M331 97 C343 88 359 91 369 102" fill="none" stroke="#9db6e8" stroke-width="12" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M198 145 C202 111 231 89 263 91 C298 93 322 119 322 151 C322 189 298 216 260 216 C223 216 194 187 198 145Z" fill="#ffe2d2" stroke="#65452a" stroke-width="5"/>
+    <circle cx="238" cy="151" r="10" fill="#5a3a25"/>
+    <circle cx="287" cy="151" r="10" fill="#5a3a25"/>
+    <circle cx="218" cy="174" r="10" fill="#ffb8ae" opacity=".72"/>
+    <circle cx="306" cy="174" r="10" fill="#ffb8ae" opacity=".72"/>
+    <path d="M262 166 C262 168 260 170 258 170" fill="none" stroke="#9b5f53" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M204 208 C195 243 206 286 260 293 C315 286 327 244 316 208 C294 194 226 194 204 208Z" fill="url(#dress)" stroke="#754f35" stroke-width="5"/>
+    <path d="M218 203 C233 220 249 225 260 225 C273 225 289 219 304 202" fill="#fff9eb" stroke="#754f35" stroke-width="4" stroke-linejoin="round"/>
+    <circle cx="262" cy="239" r="6" fill="#8ac6c2" stroke="#fff9eb" stroke-width="3"/>
+    <circle cx="262" cy="264" r="6" fill="#ffe78a" stroke="#fff9eb" stroke-width="3"/>
+    <path d="M204 229 C179 234 178 267 203 270" fill="none" stroke="#754f35" stroke-width="5" stroke-linecap="round"/>
+    <path d="M316 229 C341 234 342 267 317 270" fill="none" stroke="#754f35" stroke-width="5" stroke-linecap="round"/>
+    <path d="M223 292 C205 301 184 300 177 289 C192 276 211 276 226 287Z" fill="#ffe2d2" stroke="#754f35" stroke-width="5"/>
+    <path d="M298 292 C316 301 337 300 344 289 C329 276 310 276 295 287Z" fill="#ffe2d2" stroke="#754f35" stroke-width="5"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M403 204 L423 245 L468 251 L435 281 L443 326 L403 304 L363 326 L371 281 L338 251 L383 245Z" fill="#ffe677" stroke="#7b5531" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="367" cy="300" r="27" fill="#ffc2bd" stroke="#7b5531" stroke-width="4"/>
+    <circle cx="430" cy="304" r="29" fill="#a8dff1" stroke="#7b5531" stroke-width="4"/>
+    <circle cx="358" cy="296" r="4" fill="#65452a"/>
+    <circle cx="375" cy="296" r="4" fill="#65452a"/>
+    <path d="M360 308 C366 313 373 313 379 308" fill="none" stroke="#65452a" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="421" cy="300" r="4" fill="#65452a"/>
+    <circle cx="438" cy="300" r="4" fill="#65452a"/>
+    <path d="M423 313 C430 309 436 309 442 313" fill="none" stroke="#65452a" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <g filter="url(#softShadow)">
+    <path d="M88 258 C116 242 146 242 171 258 L163 303 C141 314 116 314 95 303Z" fill="#d8f1c9" stroke="#7b5531" stroke-width="5"/>
+    <path d="M92 258 C111 273 149 273 168 258" fill="none" stroke="#7b5531" stroke-width="4"/>
+    <path d="M91 278 C66 274 66 304 92 297" fill="none" stroke="#7b5531" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>
