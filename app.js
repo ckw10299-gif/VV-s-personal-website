@@ -4,6 +4,10 @@
   const LOCAL_BACKUP_KEY = "pm.localBackupSnapshot";
   const LAST_EMAIL_KEY = "pm.lastLoginEmail";
   const PENDING_CLOUD_KEYS = "pm.pendingCloudKeys";
+  const FALLBACK_SUPABASE_CONFIG = {
+    url: "https://mcqmltqlqvljpteqvpje.supabase.co",
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcW1sdHFscXZsanB0ZXF2cGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDg5MDUsImV4cCI6MjA5NTQ4NDkwNX0.Bu_W_KzNIH0uMd7IgA3NTX1wN9B0LPDbkJrSgK1hSIs"
+  };
   const TODO_TYPES = {
     business: "业务",
     pm: "PM",
@@ -86,9 +90,13 @@
   }
 
   function initSupabase() {
-    const config = window.PM_SUPABASE;
-    if (!config?.url || !config?.anonKey || !window.supabase?.createClient) {
-      updateCloudUI();
+    const config = window.PM_SUPABASE || FALLBACK_SUPABASE_CONFIG;
+    if (!config?.url || !config?.anonKey) {
+      updateCloudUI("Supabase 配置没有加载成功，当前先使用本地存储。");
+      return;
+    }
+    if (!window.supabase?.createClient) {
+      updateCloudUI("云端登录组件加载失败，当前先使用本地存储。请刷新页面或检查网络。");
       return;
     }
     state.supabaseAuthKey = config.authStorageKey || deriveSupabaseAuthKey(config.url);
@@ -305,7 +313,11 @@
 
   function ensureCloudReady() {
     if (state.supabase) return true;
-    alert("Supabase 还没有配置完成，请先检查 supabase-config.js。");
+    if (!window.supabase?.createClient) {
+      alert("云端登录组件还没有加载成功，请刷新页面或换个网络再试。本地数据不会丢。");
+      return false;
+    }
+    alert("Supabase 配置没有加载成功，当前会继续使用本地存储。");
     return false;
   }
 
