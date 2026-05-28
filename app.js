@@ -29,6 +29,9 @@
     cloudLoading: false,
     cloudSavePromise: Promise.resolve(),
     cloudSessionChecked: false,
+    cloudAuthSubscribed: false,
+    cloudPausedUntil: 0,
+    supabaseAuthKey: "",
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
     goals: loadArray("pm.goals"),
@@ -76,7 +79,7 @@
     seedMaterialMemory();
     seedOnboardingGoals();
     renderAll();
-    updateCloudUI("已加载本地缓存，正在后台检查登录状态。");
+    updateCloudUI("已加载本地缓存，正在恢复登录状态。");
     restoreCloudSession();
   }
 
@@ -86,15 +89,26 @@
       updateCloudUI();
       return;
     }
+    state.supabaseAuthKey = config.authStorageKey || deriveSupabaseAuthKey(config.url);
     state.supabase = window.supabase.createClient(config.url, config.anonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storage: window.localStorage
+        storage: window.localStorage,
+        storageKey: state.supabaseAuthKey
       }
     });
     state.cloudReady = true;
+  }
+
+  function deriveSupabaseAuthKey(url) {
+    try {
+      const ref = new URL(url).hostname.split(".")[0];
+      return `sb-${ref}-auth-token`;
+    } catch {
+      return "pm.supabase.auth-token";
+    }
   }
 
   function bindCloudAuth() {
@@ -114,25 +128,70 @@
   }
 
   async function restoreCloudSession() {
-    if (!state.supabase) return;
+    if (!state.supabase) {
+      state.cloudSessionChecked = true;
+      updateCloudUI();
+      return;
+    }
+    subscribeAuthChanges();
+    const cachedUser = readCachedSupabaseUser();
+    if (cachedUser) {
+      state.user = cachedUser;
+      state.cloudSessionChecked = true;
+      updateCloudUI("已从本机恢复登录；云端连接慢也不会影响本地使用。");
+      window.setTimeout(() => refreshSessionInBackground(), 300);
+      window.setTimeout(() => loadCloudData({ background: true, passive: true }), 800);
+      return;
+    }
     try {
-      const { data } = await withTimeout(state.supabase.auth.getSession(), 8000, "恢复登录状态");
+      const { data } = await withTimeout(state.supabase.auth.getSession(), 18000, "恢复登录状态");
       state.user = data.session?.user || null;
       state.cloudSessionChecked = true;
       updateCloudUI(state.user ? "已恢复登录，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
-      if (state.user) loadCloudData({ background: true });
+      if (state.user) loadCloudData({ background: true, passive: true });
     } catch (error) {
       state.cloudSessionChecked = true;
       console.warn(error.message);
-      updateCloudUI("自动恢复登录超时，已继续使用本地缓存。需要同步时请重新登录。");
+      updateCloudUI("云端登录检查较慢，已继续使用本地缓存；你可以稍后再登录或刷新云端数据。");
     }
+  }
+
+  function subscribeAuthChanges() {
+    if (state.cloudAuthSubscribed || !state.supabase) return;
+    state.cloudAuthSubscribed = true;
     state.supabase.auth.onAuthStateChange(async (_event, session) => {
       if (_event === "INITIAL_SESSION" && state.cloudSessionChecked) return;
       const previousUserId = state.user?.id || "";
       state.user = session?.user || null;
+      if (state.user) state.cloudPausedUntil = 0;
       updateCloudUI(state.user ? "登录状态已恢复，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
-      if (state.user && state.user.id !== previousUserId) loadCloudData({ background: true });
+      if (state.user && state.user.id !== previousUserId) loadCloudData({ background: true, passive: true });
     });
+  }
+
+  async function refreshSessionInBackground() {
+    try {
+      const { data } = await withTimeout(state.supabase.auth.getSession(), 22000, "刷新登录状态");
+      if (data.session?.user) {
+        state.user = data.session.user;
+        updateCloudUI("登录状态已确认，云端同步会在后台进行。");
+      }
+    } catch (error) {
+      console.warn(error.message);
+      updateCloudUI("已使用本机登录缓存；云端连接较慢，本地修改仍会正常保存。");
+    }
+  }
+
+  function readCachedSupabaseUser() {
+    if (!state.supabaseAuthKey) return null;
+    try {
+      const raw = localStorage.getItem(state.supabaseAuthKey);
+      if (!raw) return null;
+      const auth = JSON.parse(raw);
+      return auth?.user || auth?.currentSession?.user || auth?.session?.user || null;
+    } catch {
+      return null;
+    }
   }
 
   async function signIn() {
@@ -146,7 +205,7 @@
     updateCloudUI("正在登录...");
     const { data, error } = await withTimeout(
       state.supabase.auth.signInWithPassword({ email, password }),
-      15000,
+      30000,
       "登录"
     );
     if (error) {
@@ -155,6 +214,7 @@
       return;
     }
     state.user = data.user;
+    state.cloudPausedUntil = 0;
     if (email) localStorage.setItem(LAST_EMAIL_KEY, email);
     $("#authPassword").value = "";
     updateCloudUI("登录成功，正在后台同步云端数据。");
@@ -172,7 +232,7 @@
     updateCloudUI("正在注册...");
     const { data, error } = await withTimeout(
       state.supabase.auth.signUp({ email, password }),
-      15000,
+      30000,
       "注册"
     );
     if (error) {
@@ -181,6 +241,7 @@
       return;
     }
     state.user = data.user;
+    state.cloudPausedUntil = 0;
     if (email) localStorage.setItem(LAST_EMAIL_KEY, email);
     $("#authPassword").value = "";
     alert(data.session ? "注册成功，已登录。" : "注册成功，请按 Supabase 邮件设置完成验证后再登录。");
@@ -206,6 +267,7 @@
   function updateCloudUI(message = "") {
     const signedIn = Boolean(state.user);
     const checkingSession = state.cloudReady && !state.cloudSessionChecked && !signedIn;
+    const cloudPaused = signedIn && Date.now() < state.cloudPausedUntil;
     $("#authForm").classList.toggle("hidden", signedIn || checkingSession);
     $("#cloudActions").classList.toggle("hidden", !signedIn);
     $("#cloudTitle").textContent = signedIn
@@ -214,14 +276,16 @@
         ? "正在恢复上次登录"
         : "登录后同步你的个人数据";
     $("#cloudStatus").textContent = message || (signedIn
-      ? "当前数据会同步到 Supabase；换电脑打开同一个网址并登录，也能看到同一份内容。"
+      ? cloudPaused
+        ? "云端连接暂时较慢，当前使用本地优先模式；本地修改已保存，稍后可点“刷新云端数据”重试。"
+        : "当前数据会同步到 Supabase；换电脑打开同一个网址并登录，也能看到同一份内容。"
       : checkingSession
         ? "正在读取浏览器保存的登录状态；如果之前登录过，会自动进入账号。"
         : state.cloudReady
           ? "未登录时仍可本地使用；登录后数据会保存到 Supabase。"
           : "Supabase 还未配置完成，当前使用本地存储。");
-    $("#storageMode").textContent = signedIn ? "云端同步存储" : "本地演示存储";
-    $("#storageDetail").textContent = signedIn ? "Supabase Database + Storage" : "localStorage + IndexedDB";
+    $("#storageMode").textContent = signedIn ? (cloudPaused ? "本地优先存储" : "云端同步存储") : "本地演示存储";
+    $("#storageDetail").textContent = signedIn ? (cloudPaused ? "localStorage + 云端稍后重试" : "Supabase Database + Storage") : "localStorage + IndexedDB";
   }
 
   function ensureCloudReady() {
@@ -232,18 +296,22 @@
 
   async function loadCloudData(options = {}) {
     if (!state.supabase || !state.user || state.cloudLoading) return;
+    if (!options.passive) state.cloudPausedUntil = 0;
     const localSnapshot = readLocalSnapshot();
     state.cloudLoading = true;
     updateCloudUI(options.background ? "正在后台读取云端数据，本地缓存会先保留。" : "正在读取云端数据...");
     let response;
     try {
-      response = await withTimeout(
-        state.supabase
-          .from("app_items")
-          .select("kind,id,data,updated_at")
-          .order("updated_at", { ascending: false }),
-        15000,
-        "读取云端数据"
+      response = await retryCloud(
+        () => withTimeout(
+          state.supabase
+            .from("app_items")
+            .select("kind,id,data,updated_at")
+            .order("updated_at", { ascending: false }),
+          options.passive ? 18000 : 35000,
+          "读取云端数据"
+        ),
+        options.passive ? 0 : 1
       );
     } catch (error) {
       state.cloudLoading = false;
@@ -255,7 +323,7 @@
       state.docs = localSnapshot.docs;
       state.memory = localSnapshot.memory;
       renderAll();
-      updateCloudUI("云端读取超时，已继续使用本地缓存；你可以稍后点“刷新云端数据”。");
+      pauseCloudSync("云端读取较慢，已切到本地优先模式；本地数据不会被清空。");
       return;
     }
     state.cloudLoading = false;
@@ -269,7 +337,7 @@
       state.docs = localSnapshot.docs;
       state.memory = localSnapshot.memory;
       renderAll();
-      updateCloudUI(`云端读取失败，已保留本地缓存：${error.message}`);
+      pauseCloudSync(`云端读取失败，已保留本地缓存：${error.message}`);
       return;
     }
     const grouped = {
@@ -358,12 +426,13 @@
 
   function persistCloud(key, value) {
     if (!state.supabase || !state.user) return Promise.resolve();
+    if (Date.now() < state.cloudPausedUntil) return Promise.resolve();
     const snapshot = JSON.parse(JSON.stringify(value));
     state.cloudSavePromise = state.cloudSavePromise
       .then(() => persistCloudNow(key, snapshot))
       .catch((error) => {
         console.warn(error.message);
-        updateCloudUI(`云端保存失败：${error.message}`);
+        pauseCloudSync(`云端保存失败：${error.message}`);
       });
     return state.cloudSavePromise;
   }
@@ -422,6 +491,28 @@
         window.setTimeout(() => reject(new Error(`${label}超时，请检查网络或 Supabase 设置`)), ms);
       })
     ]);
+  }
+
+  async function retryCloud(task, retries = 0) {
+    let lastError;
+    for (let index = 0; index <= retries; index += 1) {
+      try {
+        return await task();
+      } catch (error) {
+        lastError = error;
+        if (index < retries) await wait(1200 * (index + 1));
+      }
+    }
+    throw lastError;
+  }
+
+  function pauseCloudSync(message) {
+    state.cloudPausedUntil = Date.now() + 5 * 60 * 1000;
+    updateCloudUI(`${message} 本地修改已保存，5 分钟后会自动恢复尝试；也可以手动点“刷新云端数据”。`);
+  }
+
+  function wait(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
   function cloudKindFromKey(key) {
