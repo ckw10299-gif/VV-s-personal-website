@@ -5,6 +5,7 @@
   const LAST_EMAIL_KEY = "pm.lastLoginEmail";
   const PENDING_CLOUD_KEYS = "pm.pendingCloudKeys";
   const LAST_CLOUD_SYNC_KEY = "pm.lastCloudSyncAt";
+  const LOCAL_DATA_LOCK_KEY = "pm.localDataLocked";
   const FALLBACK_SUPABASE_CONFIG = {
     url: "https://mcqmltqlqvljpteqvpje.supabase.co",
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcW1sdHFscXZsanB0ZXF2cGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDg5MDUsImV4cCI6MjA5NTQ4NDkwNX0.Bu_W_KzNIH0uMd7IgA3NTX1wN9B0LPDbkJrSgK1hSIs"
@@ -42,12 +43,13 @@
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
     reviewDimension: "project",
-    goals: loadArray("pm.goals"),
-    todos: loadArray("pm.todos"),
-    materials: loadArray("pm.materials"),
-    ideas: loadArray("pm.ideas"),
-    docs: loadArray("pm.docs"),
-    memory: normalizeMemory(load("pm.materialMemory", {
+    reviewWeek: "",
+    goals: loadPrivateArray("pm.goals"),
+    todos: loadPrivateArray("pm.todos"),
+    materials: loadPrivateArray("pm.materials"),
+    ideas: loadPrivateArray("pm.ideas"),
+    docs: loadPrivateArray("pm.docs"),
+    memory: normalizeMemory(isLocalDataLocked() ? {} : load("pm.materialMemory", {
       projects: [],
       vendors: [],
       tagOne: [],
@@ -149,6 +151,7 @@
     subscribeAuthChanges();
     const cachedUser = readCachedSupabaseUser();
     if (cachedUser) {
+      unlockLocalData();
       state.user = cachedUser;
       state.cloudSessionChecked = true;
       updateCloudUI("已从本机恢复登录；云端连接慢也不会影响本地使用。");
@@ -159,6 +162,7 @@
     try {
       const { data } = await withTimeout(state.supabase.auth.getSession(), 18000, "恢复登录状态");
       state.user = data.session?.user || null;
+      if (state.user) unlockLocalData();
       state.cloudSessionChecked = true;
       updateCloudUI(state.user ? "已恢复登录，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
       if (state.user) syncPendingThenLoadCloud({ background: true, passive: true });
@@ -176,6 +180,7 @@
       if (_event === "INITIAL_SESSION" && state.cloudSessionChecked) return;
       const previousUserId = state.user?.id || "";
       state.user = session?.user || null;
+      if (state.user) unlockLocalData();
       if (state.user) state.cloudPausedUntil = 0;
       updateCloudUI(state.user ? "登录状态已恢复，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
       if (state.user && state.user.id !== previousUserId) syncPendingThenLoadCloud({ background: true, passive: true });
@@ -186,6 +191,7 @@
     try {
       const { data } = await withTimeout(state.supabase.auth.getSession(), 22000, "刷新登录状态");
       if (data.session?.user) {
+        unlockLocalData();
         state.user = data.session.user;
         updateCloudUI("登录状态已确认，云端同步会在后台进行。");
       }
@@ -227,6 +233,7 @@
       return;
     }
     state.user = data.user;
+    unlockLocalData();
     state.cloudPausedUntil = 0;
     if (email) localStorage.setItem(LAST_EMAIL_KEY, email);
     $("#authPassword").value = "";
@@ -254,6 +261,7 @@
       return;
     }
     state.user = data.user;
+    unlockLocalData();
     state.cloudPausedUntil = 0;
     if (email) localStorage.setItem(LAST_EMAIL_KEY, email);
     $("#authPassword").value = "";
@@ -264,36 +272,69 @@
 
   async function signOut() {
     if (!state.supabase) return;
+    let shouldClearPending = false;
     if (state.user && hasPendingCloudChanges()) {
       updateCloudUI("正在退出前保存未同步数据到云端...");
       try {
         await flushPendingCloudChanges({ force: true });
       } catch (error) {
         console.warn(error.message);
-        const keepWorking = !confirm("云端保存暂时失败。建议先不要退出，等网络恢复后再退出。是否仍然退出登录？");
+        const keepWorking = !confirm("云端保存暂时失败。建议先不要退出，等网络恢复后再退出。若仍然退出，本机会隐藏页面数据并保留本地备份，之后可通过备份恢复。是否仍然退出登录？");
         if (keepWorking) {
           updateCloudUI("已取消退出；本地数据仍然安全保存。");
           return;
         }
+        shouldClearPending = true;
       }
     }
+    writeLocalBackupSnapshot(readPrimaryLocalSnapshot(), "sign-out");
     await withTimeout(state.supabase.auth.signOut(), 10000, "退出登录").catch((error) => console.warn(error.message));
     state.user = null;
-    state.goals = loadArray("pm.goals");
-    state.todos = loadArray("pm.todos");
-    state.materials = loadArray("pm.materials");
-    state.ideas = loadArray("pm.ideas");
-    state.docs = loadArray("pm.docs");
-    state.memory = normalizeMemory(load("pm.materialMemory", state.memory));
+    lockLocalData();
+    clearPrivateLocalCache({ clearPending: shouldClearPending || !hasPendingCloudChanges() });
+    setEmptyPrivateState();
     $("#authPassword").value = "";
-    updateCloudUI();
+    updateCloudUI("已退出登录，页面已隐藏账号数据；本地备份仍保留。");
     renderAll();
+  }
+
+  function lockLocalData() {
+    localStorage.setItem(LOCAL_DATA_LOCK_KEY, "1");
+  }
+
+  function unlockLocalData() {
+    localStorage.removeItem(LOCAL_DATA_LOCK_KEY);
+  }
+
+  function isLocalDataLocked() {
+    return localStorage.getItem(LOCAL_DATA_LOCK_KEY) === "1";
+  }
+
+  function clearPrivateLocalCache(options = {}) {
+    ["pm.todos", "pm.goals", "pm.materials", "pm.ideas", "pm.docs", "pm.materialMemory"].forEach((key) => {
+      localStorage.removeItem(key);
+    });
+    if (options.clearPending) {
+      localStorage.setItem(PENDING_CLOUD_KEYS, JSON.stringify([]));
+    }
+  }
+
+  function setEmptyPrivateState() {
+    state.goals = [];
+    state.todos = [];
+    state.materials = [];
+    state.ideas = [];
+    state.docs = [];
+    state.memory = normalizeMemory({});
+    state.materialFilters = { week: "", scriptType: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
+    state.reviewWeek = "";
   }
 
   function updateCloudUI(message = "") {
     const signedIn = Boolean(state.user);
     const checkingSession = state.cloudReady && !state.cloudSessionChecked && !signedIn;
     const cloudPaused = signedIn && Date.now() < state.cloudPausedUntil;
+    const localLocked = !signedIn && isLocalDataLocked();
     $("#authForm").classList.toggle("hidden", signedIn || checkingSession);
     $("#cloudActions").classList.toggle("hidden", !signedIn);
     $("#cloudTitle").textContent = signedIn
@@ -308,10 +349,10 @@
       : checkingSession
         ? "正在读取浏览器保存的登录状态。"
         : state.cloudReady
-          ? "未登录时仍可本地使用。"
+          ? localLocked ? "已退出，账号数据已隐藏。" : "未登录时仍可本地使用。"
           : "云端未就绪，先用本地存储。");
-    $("#storageMode").textContent = signedIn ? (cloudPaused ? "本地优先存储" : "云端同步存储") : "本地演示存储";
-    $("#storageDetail").textContent = signedIn ? (cloudPaused ? "本地保存 + 云端稍后重试" : "云端数据库 + 文件存储") : "浏览器本地存储";
+    $("#storageMode").textContent = signedIn ? (cloudPaused ? "本地优先存储" : "云端同步存储") : localLocked ? "已退出登录" : "本地演示存储";
+    $("#storageDetail").textContent = signedIn ? (cloudPaused ? "本地保存 + 云端稍后重试" : "云端数据库 + 文件存储") : localLocked ? "账号数据已隐藏，本地备份保留" : "浏览器本地存储";
     renderAvatar();
     updateSafetyUI();
   }
@@ -1211,6 +1252,10 @@
       state.reviewDimension = event.target.value;
       renderMaterialReview();
     });
+    $("#reviewWeek").addEventListener("change", (event) => {
+      state.reviewWeek = event.target.value;
+      renderMaterialReview();
+    });
   }
 
   function bindMaterialFilters() {
@@ -1764,9 +1809,9 @@
   function renderMaterialReview() {
     const list = $("#reviewList");
     if (!list) return;
-    const materials = getFilteredMaterials();
+    const materials = getReviewMaterials();
     if (!materials.length) {
-      list.innerHTML = `<div class="empty-state compact-empty">当前筛选下暂无可复盘素材。</div>`;
+      list.innerHTML = `<div class="empty-state compact-empty">当前周维度下暂无可复盘素材。</div>`;
       return;
     }
     const groups = new Map();
@@ -1813,13 +1858,19 @@
     }[state.reviewDimension] || "未分类";
   }
 
+  function getReviewMaterials() {
+    return state.materials.filter((item) => !state.reviewWeek || getWeekRangeLabel(item.date) === state.reviewWeek);
+  }
+
   function uniqueValues(values) {
     return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b, "zh-CN"));
   }
 
   function renderMaterialFilterOptions() {
-    fillSelect("#filterWeek", [["", "全部周维度"], ...uniqueValues(state.materials.map((item) => getWeekRangeLabel(item.date))).map((value) => [value, value])], state.materialFilters.week);
+    const weekOptions = uniqueValues(state.materials.map((item) => getWeekRangeLabel(item.date))).map((value) => [value, value]);
+    fillSelect("#filterWeek", [["", "全部周维度"], ...weekOptions], state.materialFilters.week);
+    fillSelect("#reviewWeek", [["", "全部周维度"], ...weekOptions], state.reviewWeek);
     fillSelect("#filterScriptType", [
       ["", "全部脚本类型"],
       ["AE脚本", "AE脚本"],
@@ -2394,6 +2445,10 @@
   function loadArray(key) {
     const value = load(key, []);
     return Array.isArray(value) ? value : [];
+  }
+
+  function loadPrivateArray(key) {
+    return isLocalDataLocked() ? [] : loadArray(key);
   }
 
   function save(key, value) {
