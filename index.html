@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>薇薇那些没做的工作</title>
-    <link rel="stylesheet" href="styles.css?v=20260528-sunny-vivi" />
+    <link rel="stylesheet" href="styles.css?v=20260528-sunny-decor" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -13,26 +13,26 @@
           <span class="brand-mark">薇</span>
           <div>
             <strong>薇薇那些没做的工作</strong>
-            <small>Todo · 素材 · 文档</small>
+            <small>待办 · 素材 · 文档</small>
           </div>
         </div>
         <nav class="nav-tabs" aria-label="主模块">
-          <button class="nav-tab active" data-view="todo">每日 TODO</button>
+          <button class="nav-tab active" data-view="todo">每日待办</button>
           <button class="nav-tab" data-view="materials">素材库</button>
           <button class="nav-tab" data-view="brain">脑暴文档</button>
         </nav>
         <div class="storage-card">
           <span id="storageMode">本地演示存储</span>
-          <strong id="storageDetail">localStorage + IndexedDB</strong>
+          <strong id="storageDetail">浏览器本地存储</strong>
         </div>
       </aside>
 
       <main class="main">
         <section class="cloud-panel" id="cloudPanel">
           <div>
-            <p class="eyebrow">Cloud Sync</p>
+            <p class="eyebrow">云端同步</p>
             <h2 id="cloudTitle">登录后同步你的个人数据</h2>
-            <p id="cloudStatus">未登录时仍可本地使用；登录后数据会保存到 Supabase。</p>
+            <p id="cloudStatus">未登录时仍可本地使用；登录后数据会保存到云端。</p>
           </div>
           <form class="cloud-form" id="authForm">
             <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email" />
@@ -53,8 +53,8 @@
 
         <header class="topbar">
           <div>
-            <p class="eyebrow">Vivi's Sunny Desk</p>
-            <h1 id="pageTitle">每日个人 TODO</h1>
+            <p class="eyebrow">薇薇的小工作台</p>
+            <h1 id="pageTitle">每日待办</h1>
           </div>
           <div class="today-pill" id="todayPill"></div>
         </header>
@@ -63,7 +63,7 @@
           <details class="goals-panel">
             <summary class="goals-head">
               <div>
-                <p class="eyebrow">Goals</p>
+                <p class="eyebrow">目标清单</p>
                 <h2>目标模块</h2>
               </div>
               <span id="goalsSummary">0 个目标</span>
@@ -88,7 +88,7 @@
           <section class="today-tasks">
             <div class="section-head compact">
               <div>
-                <p class="eyebrow" id="selectedTaskEyebrow">Selected Day</p>
+                <p class="eyebrow" id="selectedTaskEyebrow">选中日期</p>
                 <h2 id="selectedTaskTitle">今日任务</h2>
               </div>
               <div class="task-actions">
@@ -119,7 +119,7 @@
         <section id="materialsView" class="view">
           <div class="section-head">
             <div>
-              <p class="eyebrow">Content Library</p>
+              <p class="eyebrow">素材整理</p>
               <h2>个人素材录入库</h2>
             </div>
             <div class="task-actions">
@@ -130,7 +130,7 @@
           <section class="material-dashboard">
             <div class="dashboard-controls total-overview-head">
               <div>
-                <p class="eyebrow">All Time</p>
+                <p class="eyebrow">全部统计</p>
                 <h2>总脚本概览</h2>
               </div>
             </div>
@@ -153,7 +153,7 @@
             </div>
             <div class="dashboard-controls">
               <div>
-                <p class="eyebrow">Monthly Review</p>
+                <p class="eyebrow">月度概览</p>
                 <h2>月度脚本概览</h2>
               </div>
               <div class="month-controls">
@@ -182,7 +182,7 @@
           <details class="material-tools">
             <summary class="tool-head">
               <div>
-                <p class="eyebrow">Filter</p>
+                <p class="eyebrow">筛选条件</p>
                 <h2>筛选素材</h2>
               </div>
               <button class="ghost-btn" id="clearMaterialFilters" type="button">清空筛选</button>
@@ -228,7 +228,7 @@
             <section class="panel">
               <div class="section-head compact">
                 <div>
-                  <p class="eyebrow">Fast Capture</p>
+                  <p class="eyebrow">灵感速记</p>
                   <h2>碎片化脑暴记录</h2>
                 </div>
               </div>
@@ -242,7 +242,7 @@
             <section class="panel">
               <div class="section-head compact">
                 <div>
-                  <p class="eyebrow">Deep Notes</p>
+                  <p class="eyebrow">文档沉淀</p>
                   <h2>深度文档沉淀</h2>
                 </div>
                 <button class="primary-btn" id="openDocModal">新建文档</button>
@@ -258,7 +258,7 @@
       <form method="dialog" class="modal-box" id="todoForm">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Schedule</p>
+            <p class="eyebrow">日程详情</p>
             <h2 id="todoDialogTitle">日程详情</h2>
           </div>
           <button class="icon-btn" type="button" id="closeTodoDialog" title="关闭">×</button>
@@ -287,7 +287,7 @@
       <form method="dialog" class="modal-box" id="materialForm">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Upload</p>
+            <p class="eyebrow">素材录入</p>
             <h2>上传素材</h2>
           </div>
           <button class="icon-btn" type="button" id="closeMaterialDialog" title="关闭">×</button>
@@ -363,7 +363,7 @@
       <form method="dialog" class="modal-box" id="docForm">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">Document</p>
+            <p class="eyebrow">深度记录</p>
             <h2>新建深度记录</h2>
           </div>
           <button class="icon-btn" type="button" id="closeDocDialog" title="关闭">×</button>
@@ -380,7 +380,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260528-sunny-vivi"></script>
-    <script src="app.js?v=20260528-sunny-vivi"></script>
+    <script src="supabase-config.js?v=20260528-sunny-decor"></script>
+    <script src="app.js?v=20260528-sunny-decor"></script>
   </body>
 </html>

@@ -21,6 +21,7 @@
 * { box-sizing: border-box; }
 
 body {
+  position: relative;
   margin: 0;
   min-height: 100vh;
   color: var(--ink);
@@ -31,6 +32,17 @@ body {
     linear-gradient(180deg, #fffaf0 0%, #fff1bf 48%, #f4fff2 100%),
     var(--bg);
   font-family: Inter, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 31px, rgba(164, 113, 27, .055) 31px 32px),
+    repeating-linear-gradient(90deg, transparent 0 31px, rgba(164, 113, 27, .045) 31px 32px);
+  mask-image: linear-gradient(180deg, rgba(0,0,0,.55), transparent 72%);
 }
 
 ::selection {
@@ -97,6 +109,8 @@ button { cursor: pointer; }
 }
 
 .sidebar {
+  position: relative;
+  overflow: hidden;
   padding: 28px 20px;
   background:
     linear-gradient(180deg, rgba(255, 252, 242, .88), rgba(255, 239, 181, .70));
@@ -107,10 +121,50 @@ button { cursor: pointer; }
   gap: 24px;
 }
 
+.sidebar::before,
+.sidebar::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.sidebar::before {
+  top: 98px;
+  right: 18px;
+  bottom: 96px;
+  width: 2px;
+  background: repeating-linear-gradient(180deg, rgba(216, 126, 13, .38) 0 8px, transparent 8px 16px);
+}
+
+.sidebar::after {
+  width: 132px;
+  height: 42px;
+  left: -30px;
+  bottom: 116px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 143, 112, .26), rgba(255, 216, 107, .30));
+  transform: rotate(-14deg);
+}
+
 .brand {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.brand::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: #7ed6b5;
+  box-shadow: 18px 12px 0 #ffd86b, 7px 28px 0 #ff8f70;
+  transform: rotate(12deg);
+  opacity: .86;
 }
 
 .brand-mark {
@@ -173,10 +227,50 @@ button { cursor: pointer; }
 }
 
 .main {
+  position: relative;
+  isolation: isolate;
   padding: 34px;
   overflow: hidden;
   max-width: 1780px;
   width: 100%;
+}
+
+.main::before,
+.main::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.main::before {
+  top: 22px;
+  right: 48px;
+  width: 220px;
+  height: 84px;
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, transparent 0 42%, rgba(255, 143, 112, .34) 42% 56%, transparent 56%),
+    linear-gradient(90deg, rgba(255, 255, 255, .35), rgba(255, 216, 107, .38));
+  transform: rotate(8deg);
+}
+
+.main::after {
+  left: 42px;
+  bottom: 34px;
+  width: 180px;
+  height: 70px;
+  border: 1px solid rgba(242, 165, 31, .28);
+  border-radius: 18px;
+  background:
+    linear-gradient(90deg, rgba(126, 214, 181, .32) 0 28%, transparent 28% 100%),
+    repeating-linear-gradient(0deg, rgba(255,255,255,.45) 0 8px, rgba(255,255,255,.18) 8px 16px);
+  transform: rotate(-6deg);
+}
+
+.main > * {
+  position: relative;
+  z-index: 1;
 }
 
 .topbar, .section-head, .calendar-toolbar, .form-actions, .modal-head, .task-actions {
@@ -188,6 +282,23 @@ button { cursor: pointer; }
 
 .topbar {
   margin-bottom: 24px;
+}
+
+.topbar h1 {
+  position: relative;
+  display: inline-block;
+}
+
+.topbar h1::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  right: -10px;
+  bottom: 2px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 216, 107, .56);
+  z-index: -1;
 }
 
 h1, h2, h3, p { margin: 0; }
@@ -214,6 +325,8 @@ h3 { font-size: 17px; }
 }
 
 .cloud-panel {
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(260px, 1fr) auto;
   gap: 14px;
@@ -224,6 +337,18 @@ h3 { font-size: 17px; }
   border-radius: 20px;
   background: linear-gradient(135deg, rgba(255, 250, 231, .95), rgba(255, 255, 255, .9) 64%, rgba(232, 255, 245, .82));
   box-shadow: var(--soft-shadow);
+}
+
+.cloud-panel::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  top: -12px;
+  width: 92px;
+  height: 28px;
+  border-radius: 0 0 14px 14px;
+  background: rgba(126, 214, 181, .34);
+  transform: rotate(2deg);
 }
 
 .cloud-panel h2 {
@@ -272,6 +397,22 @@ h3 { font-size: 17px; }
   background: rgba(255, 253, 246, .92);
   box-shadow: var(--soft-shadow);
   overflow: hidden;
+}
+
+.goals-panel::after {
+  content: "";
+  position: absolute;
+  right: 22px;
+  bottom: -18px;
+  width: 86px;
+  height: 86px;
+  border-radius: 22px;
+  background:
+    linear-gradient(45deg, rgba(255, 143, 112, .18) 25%, transparent 25% 50%, rgba(255, 143, 112, .18) 50% 75%, transparent 75%),
+    rgba(255, 216, 107, .16);
+  background-size: 18px 18px;
+  transform: rotate(16deg);
+  pointer-events: none;
 }
 
 .goals-head {
@@ -551,6 +692,8 @@ h3 { font-size: 17px; }
 }
 
 .today-tasks {
+  position: relative;
+  overflow: hidden;
   max-width: none;
   margin-bottom: 22px;
   padding: 18px;
@@ -558,6 +701,30 @@ h3 { font-size: 17px; }
   border-radius: 22px;
   background: linear-gradient(135deg, rgba(255, 255, 255, .92), rgba(255, 244, 205, .78));
   box-shadow: var(--soft-shadow);
+}
+
+.today-tasks::before {
+  content: "";
+  position: absolute;
+  left: 24px;
+  top: -10px;
+  width: 108px;
+  height: 24px;
+  border-radius: 0 0 12px 12px;
+  background: rgba(255, 143, 112, .28);
+  transform: rotate(-3deg);
+}
+
+.today-tasks::after {
+  content: "";
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  width: 56px;
+  height: 12px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(90deg, #ffd86b 0 10px, #7ed6b5 10px 20px, #ff8f70 20px 30px);
+  opacity: .58;
 }
 
 .today-task-list {
@@ -615,8 +782,22 @@ h3 { font-size: 17px; }
 }
 
 .calendar-toolbar {
+  position: relative;
   max-width: none;
   margin-bottom: 16px;
+}
+
+.calendar-toolbar::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  width: 120px;
+  height: 6px;
+  border-radius: 999px;
+  background: repeating-linear-gradient(90deg, #ffd86b 0 14px, transparent 14px 22px, #7ed6b5 22px 36px, transparent 36px 44px);
+  transform: translateX(-50%);
+  opacity: .7;
 }
 
 .icon-btn {
@@ -732,12 +913,27 @@ h3 { font-size: 17px; }
 }
 
 .material-tools {
+  position: relative;
   margin-top: 18px;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: rgba(255, 253, 246, .88);
   box-shadow: var(--soft-shadow);
   overflow: hidden;
+}
+
+.material-tools::after {
+  content: "";
+  position: absolute;
+  right: -18px;
+  top: 16px;
+  width: 92px;
+  height: 92px;
+  border: 1px solid rgba(255, 143, 112, .22);
+  border-radius: 28px;
+  background: linear-gradient(135deg, rgba(255, 143, 112, .16), rgba(255,255,255,0));
+  transform: rotate(18deg);
+  pointer-events: none;
 }
 
 .material-tools > summary {
@@ -840,12 +1036,31 @@ h3 { font-size: 17px; }
 }
 
 .material-dashboard {
+  position: relative;
+  overflow: hidden;
   margin-top: 14px;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(255, 252, 241, .82);
   box-shadow: 0 10px 24px rgba(15, 23, 42, .05);
+}
+
+.material-dashboard::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 12px;
+  width: 10px;
+  height: calc(100% - 24px);
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffd86b, #7ed6b5 54%, #ff8f70);
+  opacity: .58;
+}
+
+.material-dashboard > * {
+  position: relative;
+  z-index: 1;
 }
 
 .dashboard-controls {
@@ -972,6 +1187,8 @@ details.material-group > summary::-webkit-details-marker {
 }
 
 .project-group {
+  position: relative;
+  overflow: hidden;
   display: grid;
   gap: 18px;
   padding: 18px;
@@ -979,6 +1196,19 @@ details.material-group > summary::-webkit-details-marker {
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(255,253,246,.92), rgba(255,246,214,.78));
   box-shadow: var(--soft-shadow);
+}
+
+.project-group::after {
+  content: "";
+  position: absolute;
+  right: 18px;
+  top: 0;
+  width: 58px;
+  height: 14px;
+  border-radius: 0 0 999px 999px;
+  background: rgba(255, 216, 107, .74);
+  box-shadow: -72px 0 0 rgba(126, 214, 181, .34);
+  pointer-events: none;
 }
 
 .project-group-head {
@@ -1119,6 +1349,30 @@ details:not([open]) > .material-group-head h3::before {
   background: rgba(255, 253, 246, 0.9);
   box-shadow: var(--soft-shadow);
   backdrop-filter: blur(12px);
+}
+
+.material-card::after,
+.doc-item::after {
+  content: "";
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  width: 34px;
+  height: 9px;
+  border-radius: 999px;
+  background: rgba(255, 216, 107, .74);
+  transform: rotate(6deg);
+  pointer-events: none;
+}
+
+.material-card:nth-child(3n)::after,
+.doc-item:nth-child(3n)::after {
+  background: rgba(126, 214, 181, .54);
+}
+
+.material-card:nth-child(3n + 2)::after,
+.doc-item:nth-child(3n + 2)::after {
+  background: rgba(255, 143, 112, .42);
 }
 
 .material-select-wrap {
@@ -1378,6 +1632,19 @@ details:not([open]) > .material-group-head h3::before {
 }
 
 .panel { padding: 18px; min-height: 560px; }
+.panel::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  top: -8px;
+  width: 96px;
+  height: 20px;
+  border-radius: 0 0 12px 12px;
+  background: rgba(255, 216, 107, .46);
+  transform: rotate(-2deg);
+  pointer-events: none;
+}
+
 .brain-layout .panel:first-child {
   position: relative;
   overflow: hidden;
@@ -1578,7 +1845,33 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
 }
 
 .modal::backdrop { background: rgba(15, 23, 42, .42); backdrop-filter: blur(3px); }
-.modal-box { padding: 24px; display: grid; gap: 15px; background: rgba(255, 253, 246, 0.97); }
+.modal-box {
+  position: relative;
+  overflow: hidden;
+  padding: 24px;
+  display: grid;
+  gap: 15px;
+  background: rgba(255, 253, 246, 0.97);
+}
+
+.modal-box::before {
+  content: "";
+  position: absolute;
+  right: -20px;
+  top: -20px;
+  width: 132px;
+  height: 132px;
+  border-radius: 30px;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 216, 107, .28) 0 8px, rgba(255, 143, 112, .18) 8px 16px);
+  transform: rotate(12deg);
+  pointer-events: none;
+}
+
+.modal-box > * {
+  position: relative;
+  z-index: 1;
+}
 .modal label { display: grid; gap: 7px; color: #3d4658; font-weight: 700; }
 .day-summary { padding: 12px; border-radius: 16px; background: #fff4cf; color: var(--muted); }
 

@@ -293,14 +293,14 @@
     $("#cloudStatus").textContent = message || (signedIn
       ? cloudPaused
         ? "云端连接暂时较慢，当前使用本地优先模式；本地修改已保存，稍后可点“刷新云端数据”重试。"
-        : "当前数据会同步到 Supabase；换电脑打开同一个网址并登录，也能看到同一份内容。"
+        : "当前数据会同步到云端；换电脑打开同一个网址并登录，也能看到同一份内容。"
       : checkingSession
         ? "正在读取浏览器保存的登录状态；如果之前登录过，会自动进入账号。"
         : state.cloudReady
-          ? "未登录时仍可本地使用；登录后数据会保存到 Supabase。"
-          : "Supabase 还未配置完成，当前使用本地存储。");
+          ? "未登录时仍可本地使用；登录后数据会保存到云端。"
+          : "云端还未配置完成，当前使用本地存储。");
     $("#storageMode").textContent = signedIn ? (cloudPaused ? "本地优先存储" : "云端同步存储") : "本地演示存储";
-    $("#storageDetail").textContent = signedIn ? (cloudPaused ? "localStorage + 云端稍后重试" : "Supabase Database + Storage") : "localStorage + IndexedDB";
+    $("#storageDetail").textContent = signedIn ? (cloudPaused ? "本地保存 + 云端稍后重试" : "云端数据库 + 文件存储") : "浏览器本地存储";
   }
 
   function ensureCloudReady() {
@@ -1359,7 +1359,7 @@
       .filter((item) => item.date === state.selectedDate)
       .sort((a, b) => Number(a.done) - Number(b.done) || b.updatedAt - a.updatedAt);
     const isToday = state.selectedDate === toISODate(new Date());
-    $("#selectedTaskEyebrow").textContent = isToday ? "Today" : "Selected Day";
+    $("#selectedTaskEyebrow").textContent = isToday ? "今天" : "选中日期";
     $("#selectedTaskTitle").textContent = `${isToday ? "今日" : formatDateLabel(selected)}任务`;
     if (!selectedTodos.length) {
       list.innerHTML = `<div class="inline-empty">${isToday ? "今天" : formatDateLabel(selected)}还没有任务安排。点击“新增/查看”添加。</div>`;
