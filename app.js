@@ -1979,13 +1979,13 @@
     canvas.height = 720;
     const ctx = canvas.getContext("2d");
     const gradient = ctx.createLinearGradient(0, 0, 1280, 720);
-    gradient.addColorStop(0, "#172033");
-    gradient.addColorStop(1, "#2563eb");
+    gradient.addColorStop(0, "#ffe176");
+    gradient.addColorStop(1, "#ff9f77");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1280, 720);
-    ctx.fillStyle = "rgba(255,255,255,.14)";
+    ctx.fillStyle = "rgba(255,255,255,.24)";
     ctx.fillRect(80, 80, 1120, 560);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "#4b2a07";
     ctx.font = "700 64px Microsoft YaHei, sans-serif";
     ctx.fillText(title || "未上传视频", 120, 360, 1040);
     ctx.font = "400 32px Microsoft YaHei, sans-serif";
