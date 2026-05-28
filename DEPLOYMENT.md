@@ -72,6 +72,9 @@ http://localhost:5173
 可以不上传：
 
 - `personal-manager-local.zip`
+- `personal-manager-recovered-backup.json`
+- `personal-manager-recovery-candidates.json`
+- `personal-manager-keyvalue-candidates.json`
 
 ## 6. GitHub Pages 设置
 

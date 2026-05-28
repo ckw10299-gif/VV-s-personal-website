@@ -25,6 +25,7 @@
     user: null,
     cloudReady: false,
     cloudLoading: false,
+    cloudSavePromise: Promise.resolve(),
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
     goals: loadArray("pm.goals"),
@@ -94,6 +95,9 @@
     $("#signOutBtn").addEventListener("click", signOut);
     $("#refreshCloudData").addEventListener("click", loadCloudData);
     $("#migrateLocalData").addEventListener("click", migrateLocalDataToCloud);
+    $("#exportLocalData").addEventListener("click", exportBackupData);
+    $("#importLocalData").addEventListener("click", () => $("#importDataFile").click());
+    $("#importDataFile").addEventListener("change", importBackupData);
   }
 
   async function restoreCloudSession() {
@@ -209,19 +213,63 @@
         grouped[row.kind].push(row.data);
       }
     });
-    state.todos = grouped.todos;
-    state.goals = grouped.goals;
-    state.materials = grouped.materials;
-    state.ideas = grouped.ideas;
-    state.docs = grouped.docs;
-    state.memory = grouped.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] };
+    const hasCloudData = Boolean((data || []).length);
+    const localSnapshot = readLocalSnapshot();
+    if (!hasCloudData && hasAnyLocalData(localSnapshot)) {
+      state.todos = localSnapshot.todos;
+      state.goals = localSnapshot.goals;
+      state.materials = localSnapshot.materials;
+      state.ideas = localSnapshot.ideas;
+      state.docs = localSnapshot.docs;
+      state.memory = localSnapshot.memory;
+      updateCloudUI("云端还是空的，已保留当前浏览器本地数据。请点“迁移本地数据到云端”。");
+      renderAll();
+      return;
+    }
+    const hasKind = (kind) => (data || []).some((row) => row.kind === kind);
+    state.todos = hasKind("todos") ? grouped.todos : localSnapshot.todos;
+    state.goals = hasKind("goals") ? grouped.goals : localSnapshot.goals;
+    state.materials = hasKind("materials") ? grouped.materials : localSnapshot.materials;
+    state.ideas = hasKind("ideas") ? grouped.ideas : localSnapshot.ideas;
+    state.docs = hasKind("docs") ? grouped.docs : localSnapshot.docs;
+    state.memory = hasKind("memory") ? grouped.memory : localSnapshot.memory;
     saveLocalSnapshot();
     updateCloudUI("云端数据已同步。");
     renderAll();
   }
 
-  async function persistCloud(key, value) {
-    if (!state.supabase || !state.user) return;
+  function readLocalSnapshot() {
+    return {
+      todos: loadArray("pm.todos"),
+      goals: loadArray("pm.goals"),
+      materials: loadArray("pm.materials"),
+      ideas: loadArray("pm.ideas"),
+      docs: loadArray("pm.docs"),
+      memory: load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
+    };
+  }
+
+  function hasAnyLocalData(snapshot) {
+    return snapshot.todos.length
+      || snapshot.goals.length
+      || snapshot.materials.length
+      || snapshot.ideas.length
+      || snapshot.docs.length;
+  }
+
+  function persistCloud(key, value) {
+    if (!state.supabase || !state.user) return Promise.resolve();
+    const snapshot = JSON.parse(JSON.stringify(value));
+    state.cloudSavePromise = state.cloudSavePromise
+      .then(() => persistCloudNow(key, snapshot))
+      .catch((error) => {
+        console.warn(error.message);
+        updateCloudUI(`云端保存失败：${error.message}`);
+      });
+    return state.cloudSavePromise;
+  }
+
+  async function persistCloudNow(key, value) {
     const kind = cloudKindFromKey(key);
     if (!kind) return;
     if (kind === "memory") {
@@ -236,7 +284,7 @@
       return;
     }
     const items = Array.isArray(value) ? value : [];
-    const deleted = await state.supabase.from("app_items").delete().eq("kind", kind);
+    const deleted = await state.supabase.from("app_items").delete().eq("kind", kind).eq("user_id", state.user.id);
     if (deleted.error) {
       console.warn(deleted.error.message);
       return;
@@ -271,14 +319,12 @@
     }
     if (!confirm("会把当前浏览器里的本地数据覆盖到你的云端账号中，确认继续吗？")) return;
     updateCloudUI("正在迁移本地数据和附件...");
-    const localData = {
-      todos: loadArray("pm.todos"),
-      goals: loadArray("pm.goals"),
-      materials: loadArray("pm.materials"),
-      ideas: loadArray("pm.ideas"),
-      docs: loadArray("pm.docs"),
-      memory: load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
-    };
+    const localData = readLocalSnapshot();
+    if (!hasAnyLocalData(localData)) {
+      alert("当前这个网页域名下没有可迁移的本地数据。如果旧数据在 localhost，请先在 localhost 页面导出备份，再到线上导入。");
+      updateCloudUI();
+      return;
+    }
     for (const item of localData.materials) {
       if (item.videoKey) await copyLocalFileToCloud(item.videoKey);
       if (item.metricKey) await copyLocalFileToCloud(item.metricKey);
@@ -298,13 +344,102 @@
     save("pm.ideas", state.ideas);
     save("pm.docs", state.docs);
     save("pm.materialMemory", state.memory);
+    await state.cloudSavePromise;
     updateCloudUI("本地数据已迁移到云端。");
+    renderAll();
+  }
+
+  async function exportBackupData() {
+    updateCloudUI("正在打包本地数据...");
+    const backup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      ...readLocalSnapshot(),
+      files: {}
+    };
+    const fileKeys = [
+      ...backup.materials.flatMap((item) => [item.videoKey, item.metricKey]),
+      ...backup.docs.map((doc) => doc.attachmentKey)
+    ].filter(Boolean);
+    for (const key of [...new Set(fileKeys)]) {
+      const file = await getLocalFile(key);
+      if (file) {
+        backup.files[key] = {
+          name: file.name || key,
+          type: file.type || "application/octet-stream",
+          dataUrl: await fileToDataUrl(file)
+        };
+      }
+    }
+    const blob = new Blob([JSON.stringify(backup)], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `personal-manager-backup-${toISODate(new Date())}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+    updateCloudUI("本地数据备份已导出。");
+  }
+
+  async function importBackupData(event) {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!state.user) {
+      alert("请先登录账号，再导入数据。");
+      return;
+    }
+    if (!confirm("导入后会覆盖当前账号的云端数据，确认继续吗？")) return;
+    updateCloudUI("正在导入数据到当前账号...");
+    const backup = JSON.parse(await file.text());
+    const files = backup.files || {};
+    for (const [key, meta] of Object.entries(files)) {
+      const blob = dataUrlToBlob(meta.dataUrl, meta.type);
+      const restoredFile = new File([blob], meta.name || key, { type: meta.type || blob.type });
+      await putCloudFile(key, restoredFile);
+      await putLocalFile(key, restoredFile);
+    }
+    state.todos = Array.isArray(backup.todos) ? backup.todos : [];
+    state.goals = Array.isArray(backup.goals) ? backup.goals : [];
+    state.materials = Array.isArray(backup.materials) ? backup.materials : [];
+    state.ideas = Array.isArray(backup.ideas) ? backup.ideas : [];
+    state.docs = Array.isArray(backup.docs) ? backup.docs : [];
+    state.memory = backup.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] };
+    save("pm.todos", state.todos);
+    save("pm.goals", state.goals);
+    save("pm.materials", state.materials);
+    save("pm.ideas", state.ideas);
+    save("pm.docs", state.docs);
+    save("pm.materialMemory", state.memory);
+    await state.cloudSavePromise;
+    updateCloudUI("数据已导入并同步到云端。");
     renderAll();
   }
 
   async function copyLocalFileToCloud(key) {
     const file = await getLocalFile(key);
     if (file) await putCloudFile(key, file);
+  }
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function dataUrlToBlob(dataUrl, fallbackType = "application/octet-stream") {
+    const [header, base64] = String(dataUrl).split(",");
+    const type = header.match(/data:(.*?);base64/)?.[1] || fallbackType;
+    const binary = atob(base64 || "");
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) {
+      bytes[index] = binary.charCodeAt(index);
+    }
+    return new Blob([bytes], { type });
   }
 
   function saveLocalSnapshot() {
