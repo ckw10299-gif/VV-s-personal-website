@@ -2,6 +2,7 @@
   const DB_NAME = "personal-manager-mvp";
   const STORE = "files";
   const LOCAL_BACKUP_KEY = "pm.localBackupSnapshot";
+  const LAST_EMAIL_KEY = "pm.lastLoginEmail";
   const TODO_TYPES = {
     business: "业务",
     pm: "PM",
@@ -97,6 +98,7 @@
   }
 
   function bindCloudAuth() {
+    $("#authEmail").value = localStorage.getItem(LAST_EMAIL_KEY) || "";
     $("#authForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       await signIn();
@@ -153,6 +155,8 @@
       return;
     }
     state.user = data.user;
+    if (email) localStorage.setItem(LAST_EMAIL_KEY, email);
+    $("#authPassword").value = "";
     updateCloudUI("登录成功，正在后台同步云端数据。");
     loadCloudData({ background: true });
   }
@@ -177,6 +181,8 @@
       return;
     }
     state.user = data.user;
+    if (email) localStorage.setItem(LAST_EMAIL_KEY, email);
+    $("#authPassword").value = "";
     alert(data.session ? "注册成功，已登录。" : "注册成功，请按 Supabase 邮件设置完成验证后再登录。");
     if (data.session) await migrateLocalDataToCloud();
     updateCloudUI();
@@ -192,20 +198,28 @@
     state.ideas = loadArray("pm.ideas");
     state.docs = loadArray("pm.docs");
     state.memory = load("pm.materialMemory", state.memory);
+    $("#authPassword").value = "";
     updateCloudUI();
     renderAll();
   }
 
   function updateCloudUI(message = "") {
     const signedIn = Boolean(state.user);
-    $("#authForm").classList.toggle("hidden", signedIn);
+    const checkingSession = state.cloudReady && !state.cloudSessionChecked && !signedIn;
+    $("#authForm").classList.toggle("hidden", signedIn || checkingSession);
     $("#cloudActions").classList.toggle("hidden", !signedIn);
-    $("#cloudTitle").textContent = signedIn ? `已登录：${state.user.email || "个人账号"}` : "登录后同步你的个人数据";
+    $("#cloudTitle").textContent = signedIn
+      ? `已登录：${state.user.email || "个人账号"}`
+      : checkingSession
+        ? "正在恢复上次登录"
+        : "登录后同步你的个人数据";
     $("#cloudStatus").textContent = message || (signedIn
       ? "当前数据会同步到 Supabase；换电脑打开同一个网址并登录，也能看到同一份内容。"
-      : state.cloudReady
-        ? "未登录时仍可本地使用；登录后数据会保存到 Supabase。"
-        : "Supabase 还未配置完成，当前使用本地存储。");
+      : checkingSession
+        ? "正在读取浏览器保存的登录状态；如果之前登录过，会自动进入账号。"
+        : state.cloudReady
+          ? "未登录时仍可本地使用；登录后数据会保存到 Supabase。"
+          : "Supabase 还未配置完成，当前使用本地存储。");
     $("#storageMode").textContent = signedIn ? "云端同步存储" : "本地演示存储";
     $("#storageDetail").textContent = signedIn ? "Supabase Database + Storage" : "localStorage + IndexedDB";
   }
