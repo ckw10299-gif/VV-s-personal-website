@@ -213,7 +213,7 @@ h3 { font-size: 17px; }
 
 .cloud-form {
   display: grid;
-  grid-template-columns: 180px 180px auto auto;
+  grid-template-columns: 180px 180px auto auto auto;
   gap: 8px;
   align-items: center;
 }

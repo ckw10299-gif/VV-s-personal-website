@@ -1,6 +1,7 @@
 (function () {
   const DB_NAME = "personal-manager-mvp";
   const STORE = "files";
+  const LOCAL_BACKUP_KEY = "pm.localBackupSnapshot";
   const TODO_TYPES = {
     business: "业务",
     pm: "PM",
@@ -105,6 +106,7 @@
     $("#refreshCloudData").addEventListener("click", loadCloudData);
     $("#migrateLocalData").addEventListener("click", migrateLocalDataToCloud);
     $("#exportLocalData").addEventListener("click", exportBackupData);
+    $("#downloadLocalBackup").addEventListener("click", exportBackupData);
     $("#importLocalData").addEventListener("click", () => $("#importDataFile").click());
     $("#importDataFile").addEventListener("change", importBackupData);
   }
@@ -296,6 +298,19 @@
   }
 
   function readLocalSnapshot() {
+    const snapshot = {
+      todos: loadArray("pm.todos"),
+      goals: loadArray("pm.goals"),
+      materials: loadArray("pm.materials"),
+      ideas: loadArray("pm.ideas"),
+      docs: loadArray("pm.docs"),
+      memory: load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
+    };
+    if (hasAnyLocalData(snapshot)) return snapshot;
+    return readLocalBackupSnapshot() || snapshot;
+  }
+
+  function readPrimaryLocalSnapshot() {
     return {
       todos: loadArray("pm.todos"),
       goals: loadArray("pm.goals"),
@@ -303,6 +318,19 @@
       ideas: loadArray("pm.ideas"),
       docs: loadArray("pm.docs"),
       memory: load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
+    };
+  }
+
+  function readLocalBackupSnapshot() {
+    const backup = load(LOCAL_BACKUP_KEY, null);
+    if (!backup?.data) return null;
+    return {
+      todos: Array.isArray(backup.data.todos) ? backup.data.todos : [],
+      goals: Array.isArray(backup.data.goals) ? backup.data.goals : [],
+      materials: Array.isArray(backup.data.materials) ? backup.data.materials : [],
+      ideas: Array.isArray(backup.data.ideas) ? backup.data.ideas : [],
+      docs: Array.isArray(backup.data.docs) ? backup.data.docs : [],
+      memory: backup.data.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }
     };
   }
 
@@ -540,6 +568,24 @@
     localStorage.setItem("pm.ideas", JSON.stringify(state.ideas));
     localStorage.setItem("pm.docs", JSON.stringify(state.docs));
     localStorage.setItem("pm.materialMemory", JSON.stringify(state.memory));
+    writeLocalBackupSnapshot({
+      todos: state.todos,
+      goals: state.goals,
+      materials: state.materials,
+      ideas: state.ideas,
+      docs: state.docs,
+      memory: state.memory
+    }, "snapshot");
+  }
+
+  function writeLocalBackupSnapshot(snapshot, reason = "auto") {
+    if (!hasAnyLocalData(snapshot)) return;
+    localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify({
+      version: 1,
+      reason,
+      savedAt: new Date().toISOString(),
+      data: snapshot
+    }));
   }
 
   function bindNavigation() {
@@ -1919,6 +1965,7 @@
 
   function save(key, value) {
     localStorage.setItem(key, JSON.stringify(value));
+    writeLocalBackupSnapshot(readPrimaryLocalSnapshot(), key);
     persistCloud(key, value);
   }
 
