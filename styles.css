@@ -2042,10 +2042,11 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
 .modal::backdrop { background: rgba(15, 23, 42, .42); backdrop-filter: blur(3px); }
 .modal-box {
   position: relative;
-  overflow: hidden;
+  overflow: visible;
   padding: 24px;
   display: grid;
   gap: 15px;
+  border-radius: inherit;
   background: rgba(255, 253, 246, 0.97);
 }
 
@@ -2132,12 +2133,14 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
+  overflow: visible;
 }
 
 .two-cols {
   display: grid;
   grid-template-columns: 1.2fr .8fr;
   gap: 10px;
+  overflow: visible;
 }
 
 .progress-options {
@@ -2170,6 +2173,11 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
 
 .memory-field {
   position: relative;
+  z-index: 2;
+}
+
+.memory-field:focus-within {
+  z-index: 80;
 }
 
 .memory-menu {
@@ -2178,8 +2186,8 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  z-index: 20;
-  max-height: 220px;
+  z-index: 1000;
+  max-height: 240px;
   overflow: auto;
   padding: 6px;
   border: 1px solid var(--line);
