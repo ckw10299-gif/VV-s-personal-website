@@ -3,6 +3,7 @@
   const STORE = "files";
   const LOCAL_BACKUP_KEY = "pm.localBackupSnapshot";
   const LAST_EMAIL_KEY = "pm.lastLoginEmail";
+  const PENDING_CLOUD_KEYS = "pm.pendingCloudKeys";
   const TODO_TYPES = {
     business: "业务",
     pm: "PM",
@@ -31,6 +32,7 @@
     cloudSessionChecked: false,
     cloudAuthSubscribed: false,
     cloudPausedUntil: 0,
+    cloudRetryTimer: null,
     supabaseAuthKey: "",
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
@@ -140,7 +142,7 @@
       state.cloudSessionChecked = true;
       updateCloudUI("已从本机恢复登录；云端连接慢也不会影响本地使用。");
       window.setTimeout(() => refreshSessionInBackground(), 300);
-      window.setTimeout(() => loadCloudData({ background: true, passive: true }), 800);
+      window.setTimeout(() => syncPendingThenLoadCloud({ background: true, passive: true }), 800);
       return;
     }
     try {
@@ -148,7 +150,7 @@
       state.user = data.session?.user || null;
       state.cloudSessionChecked = true;
       updateCloudUI(state.user ? "已恢复登录，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
-      if (state.user) loadCloudData({ background: true, passive: true });
+      if (state.user) syncPendingThenLoadCloud({ background: true, passive: true });
     } catch (error) {
       state.cloudSessionChecked = true;
       console.warn(error.message);
@@ -165,7 +167,7 @@
       state.user = session?.user || null;
       if (state.user) state.cloudPausedUntil = 0;
       updateCloudUI(state.user ? "登录状态已恢复，正在后台同步云端数据。" : "未登录，当前使用本地缓存。");
-      if (state.user && state.user.id !== previousUserId) loadCloudData({ background: true, passive: true });
+      if (state.user && state.user.id !== previousUserId) syncPendingThenLoadCloud({ background: true, passive: true });
     });
   }
 
@@ -218,7 +220,7 @@
     if (email) localStorage.setItem(LAST_EMAIL_KEY, email);
     $("#authPassword").value = "";
     updateCloudUI("登录成功，正在后台同步云端数据。");
-    loadCloudData({ background: true });
+    syncPendingThenLoadCloud({ background: true });
   }
 
   async function signUp() {
@@ -251,6 +253,19 @@
 
   async function signOut() {
     if (!state.supabase) return;
+    if (state.user && hasPendingCloudChanges()) {
+      updateCloudUI("正在退出前保存未同步数据到云端...");
+      try {
+        await flushPendingCloudChanges({ force: true });
+      } catch (error) {
+        console.warn(error.message);
+        const keepWorking = !confirm("云端保存暂时失败。建议先不要退出，等网络恢复后再退出。是否仍然退出登录？");
+        if (keepWorking) {
+          updateCloudUI("已取消退出；本地数据仍然安全保存。");
+          return;
+        }
+      }
+    }
     await withTimeout(state.supabase.auth.signOut(), 10000, "退出登录").catch((error) => console.warn(error.message));
     state.user = null;
     state.goals = loadArray("pm.goals");
@@ -296,6 +311,16 @@
 
   async function loadCloudData(options = {}) {
     if (!state.supabase || !state.user || state.cloudLoading) return;
+    if (hasPendingCloudChanges() && !options.skipPendingFlush) {
+      try {
+        await flushPendingCloudChanges({ force: !options.passive });
+      } catch (error) {
+        console.warn(error.message);
+        pauseCloudSync("本地仍有未同步修改，已暂停读取云端，避免旧云端数据覆盖本地。");
+        return;
+      }
+      if (hasPendingCloudChanges()) return;
+    }
     if (!options.passive) state.cloudPausedUntil = 0;
     const localSnapshot = readLocalSnapshot();
     state.cloudLoading = true;
@@ -368,15 +393,38 @@
       return;
     }
     const hasKind = (kind) => (data || []).some((row) => row.kind === kind);
-    state.todos = hasKind("todos") ? grouped.todos : localSnapshot.todos;
-    state.goals = hasKind("goals") ? grouped.goals : localSnapshot.goals;
-    state.materials = hasKind("materials") ? grouped.materials : localSnapshot.materials;
-    state.ideas = hasKind("ideas") ? grouped.ideas : localSnapshot.ideas;
-    state.docs = hasKind("docs") ? grouped.docs : localSnapshot.docs;
-    state.memory = hasKind("memory") ? grouped.memory : localSnapshot.memory;
+    state.todos = hasKind("todos") ? mergeCloudAndLocalItems(localSnapshot.todos, grouped.todos) : localSnapshot.todos;
+    state.goals = hasKind("goals") ? mergeCloudAndLocalItems(localSnapshot.goals, grouped.goals) : localSnapshot.goals;
+    state.materials = hasKind("materials") ? mergeCloudAndLocalItems(localSnapshot.materials, grouped.materials) : localSnapshot.materials;
+    state.ideas = hasKind("ideas") ? mergeCloudAndLocalItems(localSnapshot.ideas, grouped.ideas) : localSnapshot.ideas;
+    state.docs = hasKind("docs") ? mergeCloudAndLocalItems(localSnapshot.docs, grouped.docs) : localSnapshot.docs;
+    state.memory = hasKind("memory") ? mergeMemory(localSnapshot.memory, grouped.memory) : localSnapshot.memory;
     saveLocalSnapshot();
     updateCloudUI("云端数据已同步。");
     renderAll();
+  }
+
+  function mergeCloudAndLocalItems(localItems = [], cloudItems = []) {
+    const items = new Map();
+    [...cloudItems, ...localItems].forEach((item) => {
+      if (!item?.id) return;
+      const existing = items.get(item.id);
+      if (!existing || itemTimestamp(item) >= itemTimestamp(existing)) {
+        items.set(item.id, item);
+      }
+    });
+    return [...items.values()];
+  }
+
+  function itemTimestamp(item = {}) {
+    return Number(item.updatedAt || item.createdAt || 0);
+  }
+
+  function mergeMemory(localMemory = {}, cloudMemory = {}) {
+    return ["projects", "vendors", "tagOne", "tagTwo", "tagThree"].reduce((memory, key) => {
+      memory[key] = [...new Set([...(cloudMemory?.[key] || []), ...(localMemory?.[key] || [])])];
+      return memory;
+    }, {});
   }
 
   function readLocalSnapshot() {
@@ -426,10 +474,12 @@
 
   function persistCloud(key, value) {
     if (!state.supabase || !state.user) return Promise.resolve();
+    markCloudPending(key);
     if (Date.now() < state.cloudPausedUntil) return Promise.resolve();
     const snapshot = JSON.parse(JSON.stringify(value));
     state.cloudSavePromise = state.cloudSavePromise
       .then(() => persistCloudNow(key, snapshot))
+      .then(() => clearCloudPending(key))
       .catch((error) => {
         console.warn(error.message);
         pauseCloudSync(`云端保存失败：${error.message}`);
@@ -482,6 +532,67 @@
     await persistCloudNow("pm.ideas", snapshot.ideas);
     await persistCloudNow("pm.docs", snapshot.docs);
     await persistCloudNow("pm.materialMemory", snapshot.memory);
+    localStorage.setItem(PENDING_CLOUD_KEYS, JSON.stringify([]));
+  }
+
+  async function syncPendingThenLoadCloud(options = {}) {
+    try {
+      await flushPendingCloudChanges({ force: !options.passive });
+    } catch (error) {
+      console.warn(error.message);
+      if (options.passive) return;
+    }
+    loadCloudData(options);
+  }
+
+  async function flushPendingCloudChanges(options = {}) {
+    if (!state.supabase || !state.user) return;
+    if (!options.force && Date.now() < state.cloudPausedUntil) return;
+    const pendingKeys = getPendingCloudKeys();
+    if (!pendingKeys.length) return;
+    state.cloudPausedUntil = 0;
+    updateCloudUI("正在把本地未同步修改保存到云端...");
+    await state.cloudSavePromise;
+    state.cloudSavePromise = Promise.resolve();
+    for (const key of pendingKeys) {
+      await retryCloud(
+        () => persistCloudNow(key, valueForCloudKey(key)),
+        options.force ? 1 : 0
+      );
+      clearCloudPending(key);
+    }
+    updateCloudUI("本地未同步修改已保存到云端。");
+  }
+
+  function valueForCloudKey(key) {
+    return {
+      "pm.todos": loadArray("pm.todos"),
+      "pm.goals": loadArray("pm.goals"),
+      "pm.materials": loadArray("pm.materials"),
+      "pm.ideas": loadArray("pm.ideas"),
+      "pm.docs": loadArray("pm.docs"),
+      "pm.materialMemory": load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
+    }[key] || [];
+  }
+
+  function getPendingCloudKeys() {
+    return loadArray(PENDING_CLOUD_KEYS).filter((key) => cloudKindFromKey(key));
+  }
+
+  function hasPendingCloudChanges() {
+    return getPendingCloudKeys().length > 0;
+  }
+
+  function markCloudPending(key) {
+    if (!cloudKindFromKey(key)) return;
+    const keys = new Set(getPendingCloudKeys());
+    keys.add(key);
+    localStorage.setItem(PENDING_CLOUD_KEYS, JSON.stringify([...keys]));
+  }
+
+  function clearCloudPending(key) {
+    const keys = getPendingCloudKeys().filter((entry) => entry !== key);
+    localStorage.setItem(PENDING_CLOUD_KEYS, JSON.stringify(keys));
   }
 
   function withTimeout(promise, ms, label) {
@@ -508,7 +619,16 @@
 
   function pauseCloudSync(message) {
     state.cloudPausedUntil = Date.now() + 5 * 60 * 1000;
+    scheduleCloudRetry();
     updateCloudUI(`${message} 本地修改已保存，5 分钟后会自动恢复尝试；也可以手动点“刷新云端数据”。`);
+  }
+
+  function scheduleCloudRetry() {
+    if (state.cloudRetryTimer) window.clearTimeout(state.cloudRetryTimer);
+    state.cloudRetryTimer = window.setTimeout(() => {
+      state.cloudRetryTimer = null;
+      syncPendingThenLoadCloud({ background: true, passive: true });
+    }, Math.max(1000, state.cloudPausedUntil - Date.now() + 500));
   }
 
   function wait(ms) {
