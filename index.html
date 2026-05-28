@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>个人管理网站 MVP</title>
+    <link rel="stylesheet" href="styles.css?v=20260528-cloud-sync" />
+  </head>
+  <body>
+    <div class="app-shell" id="appShell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="brand-mark">M</span>
+          <div>
+            <strong>个人管理站</strong>
+            <small>Todo · 素材 · 文档</small>
+          </div>
+        </div>
+        <nav class="nav-tabs" aria-label="主模块">
+          <button class="nav-tab active" data-view="todo">每日 TODO</button>
+          <button class="nav-tab" data-view="materials">素材库</button>
+          <button class="nav-tab" data-view="brain">脑暴文档</button>
+        </nav>
+        <div class="storage-card">
+          <span id="storageMode">本地演示存储</span>
+          <strong id="storageDetail">localStorage + IndexedDB</strong>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section class="cloud-panel" id="cloudPanel">
+          <div>
+            <p class="eyebrow">Cloud Sync</p>
+            <h2 id="cloudTitle">登录后同步你的个人数据</h2>
+            <p id="cloudStatus">未登录时仍可本地使用；登录后数据会保存到 Supabase。</p>
+          </div>
+          <form class="cloud-form" id="authForm">
+            <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email" />
+            <input id="authPassword" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password" />
+            <button class="primary-btn" type="submit" data-auth-action="sign-in">登录</button>
+            <button class="ghost-btn" type="button" id="signUpBtn">注册</button>
+          </form>
+          <div class="cloud-actions hidden" id="cloudActions">
+            <button class="ghost-btn" type="button" id="migrateLocalData">迁移本地数据到云端</button>
+            <button class="ghost-btn" type="button" id="refreshCloudData">刷新云端数据</button>
+            <button class="ghost-btn danger-btn" type="button" id="signOutBtn">退出登录</button>
+          </div>
+        </section>
+
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Personal Operating System</p>
+            <h1 id="pageTitle">每日个人 TODO</h1>
+          </div>
+          <div class="today-pill" id="todayPill"></div>
+        </header>
+
+        <section id="todoView" class="view active">
+          <details class="goals-panel">
+            <summary class="goals-head">
+              <div>
+                <p class="eyebrow">Goals</p>
+                <h2>目标模块</h2>
+              </div>
+              <span id="goalsSummary">0 个目标</span>
+            </summary>
+            <form class="goal-form" id="goalForm">
+              <label>目标类型
+                <select id="goalType">
+                  <option value="业务产出">业务产出</option>
+                  <option value="其他维度">其他维度</option>
+                </select>
+              </label>
+              <label>目标标题<input id="goalTitle" required maxlength="80" /></label>
+              <label>目标 DDL<input id="goalDDL" type="date" /></label>
+              <label class="goal-detail-field">目标详情<textarea id="goalDetail" rows="3"></textarea></label>
+              <div class="goal-form-actions">
+                <button class="primary-btn" id="goalSubmitBtn" type="submit">新增目标</button>
+                <button class="secondary-btn ghost-btn" id="cancelGoalEdit" type="button" hidden>取消编辑</button>
+              </div>
+            </form>
+            <div class="goal-groups" id="goalGroups"></div>
+          </details>
+          <section class="today-tasks">
+            <div class="section-head compact">
+              <div>
+                <p class="eyebrow" id="selectedTaskEyebrow">Selected Day</p>
+                <h2 id="selectedTaskTitle">今日任务</h2>
+              </div>
+              <div class="task-actions">
+                <button class="ghost-btn" id="jumpToday" type="button">回到今天</button>
+                <button class="primary-btn" id="openSelectedTodo" type="button">新增/查看</button>
+              </div>
+            </div>
+            <div class="today-task-list" id="todayTaskList"></div>
+          </section>
+
+          <div class="calendar-toolbar">
+            <button class="icon-btn" id="prevMonth" title="上个月">‹</button>
+            <h2 id="monthTitle"></h2>
+            <button class="icon-btn" id="nextMonth" title="下个月">›</button>
+          </div>
+          <div class="legend">
+            <span><i class="dot business"></i>业务</span>
+            <span><i class="dot pm"></i>PM</span>
+            <span><i class="dot growth"></i>个人成长</span>
+            <span><i class="dot onboarding"></i>新人课程</span>
+          </div>
+          <div class="calendar-grid weekday-row">
+            <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid"></div>
+        </section>
+
+        <section id="materialsView" class="view">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Content Library</p>
+              <h2>个人素材录入库</h2>
+            </div>
+            <div class="task-actions">
+              <button class="ghost-btn" id="exportMaterials" type="button">导出 Excel</button>
+              <button class="primary-btn" id="openMaterialModal">上传素材</button>
+            </div>
+          </div>
+          <section class="material-dashboard">
+            <div class="dashboard-controls total-overview-head">
+              <div>
+                <p class="eyebrow">All Time</p>
+                <h2>总脚本概览</h2>
+              </div>
+            </div>
+            <div class="stats-grid total-stats-grid">
+              <article class="stat-card total">
+                <span>总产出脚本</span>
+                <strong id="allScriptCount">0</strong>
+                <small>全部素材数量</small>
+              </article>
+              <article class="stat-card approved">
+                <span>总通过脚本</span>
+                <strong id="allApprovedScriptCount">0</strong>
+                <small>脚本状态为通过</small>
+              </article>
+              <article class="stat-card rejected">
+                <span>总未通过脚本</span>
+                <strong id="allRejectedScriptCount">0</strong>
+                <small>脚本状态为不通过</small>
+              </article>
+            </div>
+            <div class="dashboard-controls">
+              <div>
+                <p class="eyebrow">Monthly Review</p>
+                <h2>月度脚本概览</h2>
+              </div>
+              <div class="month-controls">
+                <label>年份<input id="statsYear" type="number" min="2000" max="2100" /></label>
+                <label>月份<select id="statsMonth"></select></label>
+              </div>
+            </div>
+            <div class="stats-grid">
+              <article class="stat-card total">
+                <span>总产出脚本</span>
+                <strong id="totalScriptCount">0</strong>
+                <small>当月全部素材</small>
+              </article>
+              <article class="stat-card approved">
+                <span>通过脚本</span>
+                <strong id="approvedScriptCount">0</strong>
+                <small>脚本状态为通过</small>
+              </article>
+              <article class="stat-card rejected">
+                <span>未通过脚本</span>
+                <strong id="rejectedScriptCount">0</strong>
+                <small>脚本状态为不通过</small>
+              </article>
+            </div>
+          </section>
+          <details class="material-tools">
+            <summary class="tool-head">
+              <div>
+                <p class="eyebrow">Filter</p>
+                <h2>筛选素材</h2>
+              </div>
+              <button class="ghost-btn" id="clearMaterialFilters" type="button">清空筛选</button>
+            </summary>
+            <div class="filter-bar">
+            <label>周维度<select id="filterWeek"></select></label>
+            <label>脚本类型<select id="filterScriptType"></select></label>
+            <label>第一标签<select id="filterTagOne"></select></label>
+            <label>第二标签<select id="filterTagTwo"></select></label>
+            <label>第三标签<select id="filterTagThree"></select></label>
+            <label>脚本状态<select id="filterScriptStatus"></select></label>
+            <label>进度<select id="filterProgress"></select></label>
+          </div>
+          </details>
+          <div class="bulk-bar" id="bulkPanel">
+            <div class="bulk-panel-title">
+              <strong>批量修改</strong>
+              <small>选择素材后在这里统一修改字段</small>
+            </div>
+            <label class="bulk-select-all"><input id="selectAllMaterials" type="checkbox" />全选当前结果</label>
+            <span id="selectedMaterialCount">已选择 0 条</span>
+            <select id="bulkField">
+              <option value="scriptType">批量修改：脚本类型</option>
+              <option value="tagOne">批量修改：第一标签</option>
+              <option value="tagTwo">批量修改：第二标签</option>
+              <option value="tagThree">批量修改：第三标签</option>
+              <option value="vendor">批量修改：供应商</option>
+            </select>
+            <select id="bulkScriptType">
+              <option value="AE脚本">AE脚本</option>
+              <option value="UE脚本">UE脚本</option>
+              <option value="真人脚本">真人脚本</option>
+            </select>
+            <input id="bulkTextValue" placeholder="输入批量修改值" class="hidden" />
+            <button class="primary-btn" id="applyBulkEdit" type="button">应用修改</button>
+          </div>
+          <div class="material-grid" id="materialGrid"></div>
+          <div class="empty-state" id="materialEmpty">还没有素材，先上传一条视频素材。</div>
+        </section>
+
+        <section id="brainView" class="view">
+          <div class="brain-layout">
+            <section class="panel">
+              <div class="section-head compact">
+                <div>
+                  <p class="eyebrow">Fast Capture</p>
+                  <h2>碎片化脑暴记录</h2>
+                </div>
+              </div>
+              <form class="quick-form" id="ideaForm">
+                <textarea id="ideaInput" placeholder="快速记下一条灵感、观点、待沉淀内容"></textarea>
+                <button class="primary-btn" type="submit">加入看板</button>
+              </form>
+              <div class="note-board" id="ideaBoard"></div>
+            </section>
+
+            <section class="panel">
+              <div class="section-head compact">
+                <div>
+                  <p class="eyebrow">Deep Notes</p>
+                  <h2>深度文档沉淀</h2>
+                </div>
+                <button class="primary-btn" id="openDocModal">新建文档</button>
+              </div>
+              <div class="doc-list" id="docList"></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="todoDialog" class="modal">
+      <form method="dialog" class="modal-box" id="todoForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Schedule</p>
+            <h2 id="todoDialogTitle">日程详情</h2>
+          </div>
+          <button class="icon-btn" type="button" id="closeTodoDialog" title="关闭">×</button>
+        </div>
+        <div class="day-summary" id="daySummary"></div>
+        <label>标题<input id="todoTitle" required maxlength="60" /></label>
+        <label>说明<textarea id="todoDesc" rows="3"></textarea></label>
+        <fieldset class="type-field">
+          <legend>类型选择</legend>
+          <div class="type-options" role="radiogroup" aria-label="类型选择">
+            <label class="type-chip business"><input type="radio" name="todoType" value="business" checked />业务</label>
+            <label class="type-chip pm"><input type="radio" name="todoType" value="pm" />PM</label>
+            <label class="type-chip growth"><input type="radio" name="todoType" value="growth" />个人成长</label>
+            <label class="type-chip onboarding"><input type="radio" name="todoType" value="onboarding" />新人课程</label>
+          </div>
+        </fieldset>
+        <div class="form-actions">
+          <button class="ghost-btn" type="button" id="clearTodoEdit">清空</button>
+          <button class="primary-btn" type="submit" id="todoSubmitBtn">保存日程</button>
+        </div>
+        <div class="todo-list" id="todoList"></div>
+      </form>
+    </dialog>
+
+    <dialog id="materialDialog" class="modal">
+      <form method="dialog" class="modal-box" id="materialForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Upload</p>
+            <h2>上传素材</h2>
+          </div>
+          <button class="icon-btn" type="button" id="closeMaterialDialog" title="关闭">×</button>
+        </div>
+        <label>素材标题<input id="materialTitle" required maxlength="80" autocomplete="off" /></label>
+        <label class="memory-field">所属项目<input id="projectName" maxlength="80" autocomplete="off" /><div class="memory-menu" data-menu-for="projectName"></div></label>
+        <fieldset class="type-field">
+          <legend>脚本类型</legend>
+          <div class="script-status-options">
+            <label><input type="radio" name="scriptType" value="AE脚本" checked />AE脚本</label>
+            <label><input type="radio" name="scriptType" value="UE脚本" />UE脚本</label>
+            <label><input type="radio" name="scriptType" value="真人脚本" />真人脚本</label>
+          </div>
+        </fieldset>
+        <label>脚本链接<input id="scriptLink" type="url" placeholder="https://..." /></label>
+        <fieldset class="type-field">
+          <legend>脚本状态</legend>
+          <div class="script-status-options">
+            <label><input type="radio" name="scriptStatus" value="" checked />未设置</label>
+            <label><input type="radio" name="scriptStatus" value="通过" />通过</label>
+            <label><input type="radio" name="scriptStatus" value="不通过" />不通过</label>
+          </div>
+        </fieldset>
+        <fieldset class="type-field">
+          <legend>进度</legend>
+          <div class="progress-options">
+            <label><input id="progressReviewSheet" type="checkbox" />是否贴到审核表格中</label>
+            <label><input id="progressPassed" type="checkbox" />是否通过</label>
+            <label><input id="progressPushed" type="checkbox" />是否推进</label>
+            <label><input id="progressFeedback" type="checkbox" />是否反馈</label>
+            <label><input id="progressRecovered" type="checkbox" />是否回收</label>
+          </div>
+        </fieldset>
+        <label class="memory-field">供应商<input id="vendorName" maxlength="60" autocomplete="off" /><div class="memory-menu" data-menu-for="vendorName"></div></label>
+        <label>视频文件（可选）<input id="materialVideo" type="file" accept="video/*" /></label>
+        <div class="three-cols">
+          <label class="memory-field">第一标签<input id="tagOne" required autocomplete="off" /><div class="memory-menu" data-menu-for="tagOne"></div></label>
+          <label class="memory-field">第二标签<input id="tagTwo" required autocomplete="off" /><div class="memory-menu" data-menu-for="tagTwo"></div></label>
+          <label class="memory-field">第三标签<input id="tagThree" required autocomplete="off" /><div class="memory-menu" data-menu-for="tagThree"></div></label>
+        </div>
+        <label>上传时间<input id="materialDate" type="date" required /></label>
+        <div class="two-cols">
+          <label>数据截图（可选）<input id="materialMetric" type="file" accept="image/*" /></label>
+          <label>数据评分
+            <select id="materialRating">
+              <option value="0">未评分</option>
+              <option value="1">1 星</option>
+              <option value="2">2 星</option>
+              <option value="3">3 星</option>
+              <option value="4">4 星</option>
+              <option value="5">5 星</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-actions">
+          <button class="ghost-btn" type="button" id="cancelMaterial">取消</button>
+          <button class="primary-btn" type="submit">保存素材</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="videoDialog" class="modal media-modal">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h2 id="videoTitle">素材预览</h2>
+          <button class="icon-btn" id="closeVideo" title="关闭">×</button>
+        </div>
+        <video id="videoPlayer" controls></video>
+      </div>
+    </dialog>
+
+    <dialog id="docDialog" class="modal">
+      <form method="dialog" class="modal-box" id="docForm">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Document</p>
+            <h2>新建深度记录</h2>
+          </div>
+          <button class="icon-btn" type="button" id="closeDocDialog" title="关闭">×</button>
+        </div>
+        <label>标题<input id="docTitle" required maxlength="80" /></label>
+        <label>正文<textarea id="docBody" rows="7"></textarea></label>
+        <label>链接<input id="docLink" type="url" placeholder="https://..." /></label>
+        <label>附件<input id="docAttachment" type="file" /></label>
+        <div class="form-actions">
+          <button class="ghost-btn" type="button" id="cancelDoc">取消</button>
+          <button class="primary-btn" type="submit">保存文档</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js?v=20260528-cloud-sync"></script>
+    <script src="app.js?v=20260528-cloud-sync"></script>
+  </body>
+</html>
