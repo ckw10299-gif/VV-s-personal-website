@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>薇薇那些没做的工作</title>
-    <link rel="stylesheet" href="styles.css?v=20260528-clean-sync" />
+    <link rel="stylesheet" href="styles.css?v=20260528-sidebar-review" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -21,36 +21,50 @@
           <button class="nav-tab" data-view="materials">素材库</button>
           <button class="nav-tab" data-view="brain">脑暴文档</button>
         </nav>
-        <div class="storage-card">
-          <span id="storageMode">本地演示存储</span>
-          <strong id="storageDetail">浏览器本地存储</strong>
-        </div>
-      </aside>
-
-      <main class="main">
-        <section class="cloud-panel" id="cloudPanel">
-          <div>
-            <p class="eyebrow">云端同步</p>
-            <h2 id="cloudTitle">登录后同步你的个人数据</h2>
-            <p id="cloudStatus">未登录时仍可本地使用；登录后数据会保存到云端。</p>
+        <section class="sidebar-cloud-panel" id="cloudPanel">
+          <div class="profile-row">
+            <label class="avatar-uploader" title="上传头像">
+              <input class="hidden" id="avatarInput" type="file" accept="image/*" />
+              <img class="hidden" id="userAvatar" alt="头像" />
+              <span id="avatarInitial">薇</span>
+            </label>
+            <div class="profile-copy">
+              <p class="eyebrow">账号同步</p>
+              <h2 id="cloudTitle">登录后同步数据</h2>
+              <p id="cloudStatus">未登录时仍可本地使用。</p>
+            </div>
           </div>
           <form class="cloud-form" id="authForm">
             <input id="authEmail" type="email" placeholder="邮箱" autocomplete="email" />
             <input id="authPassword" type="password" placeholder="密码（至少 6 位）" autocomplete="current-password" />
             <button class="primary-btn" type="submit" data-auth-action="sign-in">登录</button>
             <button class="ghost-btn" type="button" id="signUpBtn">注册</button>
-            <button class="ghost-btn" type="button" id="downloadLocalBackup">下载本地备份</button>
           </form>
           <div class="cloud-actions hidden" id="cloudActions">
-            <button class="ghost-btn" type="button" id="migrateLocalData">迁移本地数据到云端</button>
-            <button class="ghost-btn" type="button" id="exportLocalData">导出本地数据</button>
-            <button class="ghost-btn" type="button" id="importLocalData">导入数据到当前账号</button>
+            <button class="ghost-btn" type="button" id="migrateLocalData">迁移本地</button>
+            <button class="ghost-btn" type="button" id="refreshCloudData">刷新云端</button>
+            <button class="ghost-btn" type="button" id="importLocalData">导入备份</button>
+            <button class="ghost-btn" type="button" id="exportLocalData">导出备份</button>
             <input class="hidden" id="importDataFile" type="file" accept="application/json" />
-            <button class="ghost-btn" type="button" id="refreshCloudData">刷新云端数据</button>
             <button class="ghost-btn danger-btn" type="button" id="signOutBtn">退出登录</button>
           </div>
         </section>
+        <details class="storage-card safety-card">
+          <summary>
+            <span id="storageMode">本地演示存储</span>
+            <strong>数据安全中心</strong>
+          </summary>
+          <div class="safety-list">
+            <div><span>存储状态</span><strong id="storageDetail">浏览器本地存储</strong></div>
+            <div><span>上次本地备份</span><strong id="lastLocalBackupTime">暂无</strong></div>
+            <div><span>上次云端同步</span><strong id="lastCloudSyncTime">暂无</strong></div>
+            <div><span>未同步数据</span><strong id="pendingCloudState">无</strong></div>
+          </div>
+          <button class="ghost-btn full-btn" type="button" id="downloadLocalBackup">下载本地备份</button>
+        </details>
+      </aside>
 
+      <main class="main">
         <header class="topbar">
           <div>
             <p class="eyebrow">薇薇的小工作台</p>
@@ -177,6 +191,25 @@
                 <strong id="rejectedScriptCount">0</strong>
                 <small>脚本状态为不通过</small>
               </article>
+            </div>
+            <div class="review-panel">
+              <div class="dashboard-controls">
+                <div>
+                  <p class="eyebrow">素材复盘</p>
+                  <h2>不同维度通过率</h2>
+                </div>
+                <label class="review-select">查看维度
+                  <select id="reviewDimension">
+                    <option value="project">所属项目</option>
+                    <option value="scriptType">脚本类型</option>
+                    <option value="tagOne">第一标签</option>
+                    <option value="tagTwo">第二标签</option>
+                    <option value="tagThree">第三标签</option>
+                    <option value="vendor">供应商</option>
+                  </select>
+                </label>
+              </div>
+              <div class="review-list" id="reviewList"></div>
             </div>
           </section>
           <details class="material-tools">
@@ -380,7 +413,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260528-clean-sync"></script>
-    <script src="app.js?v=20260528-clean-sync"></script>
+    <script src="supabase-config.js?v=20260528-sidebar-review"></script>
+    <script src="app.js?v=20260528-sidebar-review"></script>
   </body>
 </html>

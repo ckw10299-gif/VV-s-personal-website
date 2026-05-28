@@ -4,6 +4,7 @@
   const LOCAL_BACKUP_KEY = "pm.localBackupSnapshot";
   const LAST_EMAIL_KEY = "pm.lastLoginEmail";
   const PENDING_CLOUD_KEYS = "pm.pendingCloudKeys";
+  const LAST_CLOUD_SYNC_KEY = "pm.lastCloudSyncAt";
   const FALLBACK_SUPABASE_CONFIG = {
     url: "https://mcqmltqlqvljpteqvpje.supabase.co",
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcW1sdHFscXZsanB0ZXF2cGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDg5MDUsImV4cCI6MjA5NTQ4NDkwNX0.Bu_W_KzNIH0uMd7IgA3NTX1wN9B0LPDbkJrSgK1hSIs"
@@ -40,18 +41,19 @@
     supabaseAuthKey: "",
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
+    reviewDimension: "project",
     goals: loadArray("pm.goals"),
     todos: loadArray("pm.todos"),
     materials: loadArray("pm.materials"),
     ideas: loadArray("pm.ideas"),
     docs: loadArray("pm.docs"),
-    memory: load("pm.materialMemory", {
+    memory: normalizeMemory(load("pm.materialMemory", {
       projects: [],
       vendors: [],
       tagOne: [],
       tagTwo: [],
       tagThree: []
-    }),
+    })),
     materialFilters: {
       week: "",
       scriptType: "",
@@ -135,6 +137,7 @@
     $("#downloadLocalBackup").addEventListener("click", exportBackupData);
     $("#importLocalData").addEventListener("click", () => $("#importDataFile").click());
     $("#importDataFile").addEventListener("change", importBackupData);
+    $("#avatarInput").addEventListener("change", updateAvatar);
   }
 
   async function restoreCloudSession() {
@@ -281,7 +284,7 @@
     state.materials = loadArray("pm.materials");
     state.ideas = loadArray("pm.ideas");
     state.docs = loadArray("pm.docs");
-    state.memory = load("pm.materialMemory", state.memory);
+    state.memory = normalizeMemory(load("pm.materialMemory", state.memory));
     $("#authPassword").value = "";
     updateCloudUI();
     renderAll();
@@ -294,21 +297,117 @@
     $("#authForm").classList.toggle("hidden", signedIn || checkingSession);
     $("#cloudActions").classList.toggle("hidden", !signedIn);
     $("#cloudTitle").textContent = signedIn
-      ? `已登录：${state.user.email || "个人账号"}`
+      ? state.user.email || "个人账号"
       : checkingSession
         ? "正在恢复上次登录"
-        : "登录后同步你的个人数据";
+        : "登录后同步数据";
     $("#cloudStatus").textContent = message || (signedIn
       ? cloudPaused
-        ? "云端连接暂时较慢，当前使用本地优先模式；本地修改已保存，稍后可点“刷新云端数据”重试。"
-        : "当前数据会同步到云端；换电脑打开同一个网址并登录，也能看到同一份内容。"
+        ? "本地优先，稍后可刷新云端。"
+        : "云端同步中，换设备登录也能用。"
       : checkingSession
-        ? "正在读取浏览器保存的登录状态；如果之前登录过，会自动进入账号。"
+        ? "正在读取浏览器保存的登录状态。"
         : state.cloudReady
-          ? "未登录时仍可本地使用；登录后数据会保存到云端。"
-          : "云端还未配置完成，当前使用本地存储。");
+          ? "未登录时仍可本地使用。"
+          : "云端未就绪，先用本地存储。");
     $("#storageMode").textContent = signedIn ? (cloudPaused ? "本地优先存储" : "云端同步存储") : "本地演示存储";
     $("#storageDetail").textContent = signedIn ? (cloudPaused ? "本地保存 + 云端稍后重试" : "云端数据库 + 文件存储") : "浏览器本地存储";
+    renderAvatar();
+    updateSafetyUI();
+  }
+
+  async function updateAvatar(event) {
+    const file = event.target.files[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!state.user) {
+      alert("请先登录账号，再上传头像。");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      alert("请选择图片文件。");
+      return;
+    }
+    try {
+      const avatarData = await imageFileToAvatarDataUrl(file);
+      state.memory = normalizeMemory(state.memory);
+      state.memory.profile = {
+        ...(state.memory.profile || {}),
+        email: state.user.email || "",
+        avatarData,
+        updatedAt: Date.now()
+      };
+      save("pm.materialMemory", state.memory);
+      updateCloudUI("头像已保存，会跟随账号同步。");
+    } catch (error) {
+      console.warn(error.message);
+      alert("头像保存失败，请换一张图片再试。");
+    }
+  }
+
+  function renderAvatar() {
+    const img = $("#userAvatar");
+    const initial = $("#avatarInitial");
+    if (!img || !initial) return;
+    const avatarData = normalizeMemory(state.memory).profile?.avatarData || "";
+    if (avatarData) {
+      img.src = avatarData;
+      img.classList.remove("hidden");
+      initial.classList.add("hidden");
+      return;
+    }
+    img.removeAttribute("src");
+    img.classList.add("hidden");
+    initial.classList.remove("hidden");
+    initial.textContent = (state.user?.email || "薇").trim().slice(0, 1).toUpperCase();
+  }
+
+  function updateSafetyUI() {
+    const backup = load(LOCAL_BACKUP_KEY, null);
+    const lastLocal = backup?.savedAt || "";
+    const lastCloud = localStorage.getItem(LAST_CLOUD_SYNC_KEY) || "";
+    const pendingKeys = getPendingCloudKeys();
+    if ($("#lastLocalBackupTime")) $("#lastLocalBackupTime").textContent = formatDateTime(lastLocal);
+    if ($("#lastCloudSyncTime")) $("#lastCloudSyncTime").textContent = formatDateTime(lastCloud);
+    if ($("#pendingCloudState")) {
+      $("#pendingCloudState").textContent = pendingKeys.length ? `${pendingKeys.length} 项待同步` : "无";
+    }
+  }
+
+  function formatDateTime(value) {
+    if (!value) return "暂无";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "暂无";
+    return new Intl.DateTimeFormat("zh-CN", {
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    }).format(date);
+  }
+
+  async function imageFileToAvatarDataUrl(file) {
+    const dataUrl = await fileToDataUrl(file);
+    const image = await loadImage(dataUrl);
+    const size = 180;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d");
+    const scale = Math.max(size / image.width, size / image.height);
+    const width = image.width * scale;
+    const height = image.height * scale;
+    context.drawImage(image, (size - width) / 2, (size - height) / 2, width, height);
+    return canvas.toDataURL("image/png");
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = src;
+    });
   }
 
   function ensureCloudReady() {
@@ -377,6 +476,7 @@
       pauseCloudSync(`云端读取失败，已保留本地缓存：${error.message}`);
       return;
     }
+    markCloudSynced();
     const grouped = {
       todos: [],
       goals: [],
@@ -433,10 +533,29 @@
   }
 
   function mergeMemory(localMemory = {}, cloudMemory = {}) {
-    return ["projects", "vendors", "tagOne", "tagTwo", "tagThree"].reduce((memory, key) => {
-      memory[key] = [...new Set([...(cloudMemory?.[key] || []), ...(localMemory?.[key] || [])])];
-      return memory;
+    const local = normalizeMemory(localMemory);
+    const cloud = normalizeMemory(cloudMemory);
+    const memory = ["projects", "vendors", "tagOne", "tagTwo", "tagThree"].reduce((result, key) => {
+      result[key] = [...new Set([...(cloud[key] || []), ...(local[key] || [])])];
+      return result;
     }, {});
+    memory.profile = newerProfile(local.profile, cloud.profile);
+    return memory;
+  }
+
+  function normalizeMemory(memory = {}) {
+    return ["projects", "vendors", "tagOne", "tagTwo", "tagThree"].reduce((result, key) => {
+      result[key] = Array.isArray(memory?.[key]) ? memory[key] : [];
+      return result;
+    }, {
+      profile: memory?.profile || {}
+    });
+  }
+
+  function newerProfile(localProfile = {}, cloudProfile = {}) {
+    const localTime = Number(localProfile?.updatedAt || 0);
+    const cloudTime = Number(cloudProfile?.updatedAt || 0);
+    return cloudTime > localTime ? cloudProfile : localProfile;
   }
 
   function readLocalSnapshot() {
@@ -446,7 +565,7 @@
       materials: loadArray("pm.materials"),
       ideas: loadArray("pm.ideas"),
       docs: loadArray("pm.docs"),
-      memory: load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
+      memory: normalizeMemory(load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }))
     };
     if (hasAnyLocalData(snapshot)) return snapshot;
     return readLocalBackupSnapshot() || snapshot;
@@ -459,7 +578,7 @@
       materials: loadArray("pm.materials"),
       ideas: loadArray("pm.ideas"),
       docs: loadArray("pm.docs"),
-      memory: load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
+      memory: normalizeMemory(load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }))
     };
   }
 
@@ -472,16 +591,23 @@
       materials: Array.isArray(backup.data.materials) ? backup.data.materials : [],
       ideas: Array.isArray(backup.data.ideas) ? backup.data.ideas : [],
       docs: Array.isArray(backup.data.docs) ? backup.data.docs : [],
-      memory: backup.data.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }
+      memory: normalizeMemory(backup.data.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
     };
   }
 
   function hasAnyLocalData(snapshot) {
+    const memory = normalizeMemory(snapshot.memory);
     return snapshot.todos.length
       || snapshot.goals.length
       || snapshot.materials.length
       || snapshot.ideas.length
-      || snapshot.docs.length;
+      || snapshot.docs.length
+      || memory.projects.length
+      || memory.vendors.length
+      || memory.tagOne.length
+      || memory.tagTwo.length
+      || memory.tagThree.length
+      || Boolean(memory.profile?.avatarData);
   }
 
   function persistCloud(key, value) {
@@ -511,6 +637,7 @@
         updated_at: new Date().toISOString()
       }), 15000, "保存标签记忆");
       if (error) throw new Error(error.message);
+      markCloudSynced();
       return;
     }
     const items = Array.isArray(value) ? value : [];
@@ -522,7 +649,10 @@
     if (deleted.error) {
       throw new Error(deleted.error.message);
     }
-    if (!items.length) return;
+    if (!items.length) {
+      markCloudSynced();
+      return;
+    }
     const rows = items.map((item) => ({
       id: item.id,
       user_id: state.user.id,
@@ -532,6 +662,12 @@
     }));
     const { error } = await withTimeout(state.supabase.from("app_items").insert(rows), 20000, `保存${kind}`);
     if (error) throw new Error(error.message);
+    markCloudSynced();
+  }
+
+  function markCloudSynced() {
+    localStorage.setItem(LAST_CLOUD_SYNC_KEY, new Date().toISOString());
+    updateSafetyUI();
   }
 
   async function replaceCloudSnapshot(snapshot) {
@@ -600,11 +736,13 @@
     const keys = new Set(getPendingCloudKeys());
     keys.add(key);
     localStorage.setItem(PENDING_CLOUD_KEYS, JSON.stringify([...keys]));
+    updateSafetyUI();
   }
 
   function clearCloudPending(key) {
     const keys = getPendingCloudKeys().filter((entry) => entry !== key);
     localStorage.setItem(PENDING_CLOUD_KEYS, JSON.stringify(keys));
+    updateSafetyUI();
   }
 
   function withTimeout(promise, ms, label) {
@@ -683,7 +821,7 @@
     state.materials = localData.materials;
     state.ideas = localData.ideas;
     state.docs = localData.docs;
-    state.memory = localData.memory;
+    state.memory = normalizeMemory(localData.memory);
     save("pm.todos", state.todos);
     save("pm.goals", state.goals);
     save("pm.materials", state.materials);
@@ -753,14 +891,14 @@
         materials: Array.isArray(backup.materials) ? backup.materials : [],
         ideas: Array.isArray(backup.ideas) ? backup.ideas : [],
         docs: Array.isArray(backup.docs) ? backup.docs : [],
-        memory: backup.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }
+        memory: normalizeMemory(backup.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
       };
       state.todos = snapshot.todos;
       state.goals = snapshot.goals;
       state.materials = snapshot.materials;
       state.ideas = snapshot.ideas;
       state.docs = snapshot.docs;
-      state.memory = snapshot.memory;
+      state.memory = normalizeMemory(snapshot.memory);
       saveLocalSnapshot();
       renderAll();
       updateCloudUI("本地已恢复，正在同步云端...");
@@ -823,6 +961,7 @@
       savedAt: new Date().toISOString(),
       data: snapshot
     }));
+    updateSafetyUI();
   }
 
   function bindNavigation() {
@@ -1067,6 +1206,10 @@
     $("#statsMonth").addEventListener("change", (event) => {
       state.statsMonth = Number(event.target.value);
       renderMaterialStats();
+    });
+    $("#reviewDimension").addEventListener("change", (event) => {
+      state.reviewDimension = event.target.value;
+      renderMaterialReview();
     });
   }
 
@@ -1615,6 +1758,59 @@
     $("#approvedScriptCount").textContent = approved;
     $("#totalScriptCount").textContent = monthly.length;
     $("#rejectedScriptCount").textContent = rejected;
+    renderMaterialReview();
+  }
+
+  function renderMaterialReview() {
+    const list = $("#reviewList");
+    if (!list) return;
+    const materials = getFilteredMaterials();
+    if (!materials.length) {
+      list.innerHTML = `<div class="empty-state compact-empty">当前筛选下暂无可复盘素材。</div>`;
+      return;
+    }
+    const groups = new Map();
+    materials.forEach((item) => {
+      const key = reviewGroupName(item);
+      const group = groups.get(key) || { name: key, total: 0, approved: 0, rejected: 0 };
+      group.total += 1;
+      if (isScriptApproved(item.scriptStatus)) group.approved += 1;
+      if (isScriptRejected(item.scriptStatus)) group.rejected += 1;
+      groups.set(key, group);
+    });
+    const rows = [...groups.values()]
+      .map((group) => ({
+        ...group,
+        rate: group.total ? Math.round((group.approved / group.total) * 100) : 0
+      }))
+      .sort((a, b) => b.total - a.total || b.rate - a.rate || a.name.localeCompare(b.name, "zh-CN"))
+      .slice(0, 8);
+    list.innerHTML = rows.map((row) => `
+      <div class="review-row">
+        <div class="review-name" title="${escapeAttr(row.name)}">${escapeHtml(row.name)}</div>
+        <div>
+          <div class="review-bar"><span style="width:${row.rate}%"></span></div>
+          <div class="review-meta">
+            <span>总数 ${row.total}</span>
+            <span>通过 ${row.approved}</span>
+            <span>未通过 ${row.rejected}</span>
+          </div>
+        </div>
+        <strong class="review-rate">${row.rate}%</strong>
+      </div>
+    `).join("");
+  }
+
+  function reviewGroupName(item) {
+    const tags = normalizedTags(item);
+    return {
+      project: item.project || "未归属项目",
+      scriptType: normalizedScriptType(item),
+      tagOne: tags[0] || "未填写第一标签",
+      tagTwo: tags[1] || "未填写第二标签",
+      tagThree: tags[2] || "未填写第三标签",
+      vendor: item.vendor || "未填写供应商"
+    }[state.reviewDimension] || "未分类";
   }
 
   function uniqueValues(values) {
