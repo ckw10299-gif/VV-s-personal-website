@@ -1174,6 +1174,16 @@
     $("#closeVideo").addEventListener("click", closeVideo);
     $("#videoDialog").addEventListener("close", closeVideo);
     $("#exportMaterials").addEventListener("click", exportMaterials);
+    $("#progressPassed").addEventListener("change", (event) => {
+      if (event.target.checked) setScriptStatusRadio("通过");
+    });
+    document.querySelectorAll('input[name="scriptStatus"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        if (input.value === "通过") $("#progressPassed").checked = true;
+        if (input.value === "不通过") $("#progressPassed").checked = false;
+      });
+    });
     initMaterialStatsControls();
     $("#materialForm").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1190,20 +1200,23 @@
         const cover = videoFile ? await captureVideoCover(videoFile) : editing?.cover || createPlaceholderCover($("#materialTitle").value.trim());
         if (videoFile) await putFile(videoKey, videoFile);
         if (metricFile) await putFile(metricKey, metricFile);
+        const formData = new FormData(event.currentTarget);
+        const progress = {
+          passed: $("#progressPassed").checked,
+          pushed: $("#progressPushed").checked,
+          feedback: $("#progressFeedback").checked,
+          recovered: $("#progressRecovered").checked,
+          reviewSheet: $("#progressReviewSheet").checked
+        };
+        const scriptStatus = progress.passed ? "通过" : formData.get("scriptStatus") || "";
         const payload = {
           id,
           title: $("#materialTitle").value.trim(),
           project: $("#projectName").value.trim(),
-          scriptType: new FormData(event.currentTarget).get("scriptType") || "AE脚本",
+          scriptType: formData.get("scriptType") || "AE脚本",
           scriptLink: $("#scriptLink").value.trim(),
-          scriptStatus: new FormData(event.currentTarget).get("scriptStatus") || "",
-          progress: {
-            passed: $("#progressPassed").checked,
-            pushed: $("#progressPushed").checked,
-            feedback: $("#progressFeedback").checked,
-            recovered: $("#progressRecovered").checked,
-            reviewSheet: $("#progressReviewSheet").checked
-          },
+          scriptStatus,
+          progress,
           vendor: $("#vendorName").value.trim(),
           tags: [$("#tagOne").value.trim(), $("#tagTwo").value.trim(), $("#tagThree").value.trim()],
           date: $("#materialDate").value,
@@ -1676,6 +1689,7 @@
 
   async function renderMaterials() {
     const grid = $("#materialGrid");
+    syncProgressPassedToStatus();
     renderMaterialStats();
     renderMaterialFilterOptions();
     renderMaterialOptions();
@@ -1755,6 +1769,9 @@
     });
     grid.querySelectorAll("[data-progress]").forEach((button) => {
       button.addEventListener("click", () => toggleMaterialProgress(button.closest(".material-card").dataset.id, button.dataset.progress));
+    });
+    grid.querySelectorAll("[data-rating]").forEach((button) => {
+      button.addEventListener("click", () => updateMaterialRating(button.closest(".material-card").dataset.id, Number(button.dataset.rating)));
     });
     grid.querySelectorAll("[data-action='delete']").forEach((button) => {
       button.addEventListener("click", async () => {
@@ -2109,10 +2126,29 @@
       if (item.id !== id) return item;
       const progress = { ...(item.progress || {}) };
       progress[key] = !progress[key];
-      return { ...item, progress, updatedAt: Date.now() };
+      const scriptStatus = key === "passed" && progress.passed ? "通过" : item.scriptStatus;
+      return { ...item, progress, scriptStatus, updatedAt: Date.now() };
     });
     save("pm.materials", state.materials);
     renderMaterials();
+  }
+
+  function updateMaterialRating(id, rating) {
+    state.materials = state.materials.map((item) => (
+      item.id === id ? { ...item, rating, updatedAt: Date.now() } : item
+    ));
+    save("pm.materials", state.materials);
+    renderMaterials();
+  }
+
+  function syncProgressPassedToStatus() {
+    let changed = false;
+    state.materials = state.materials.map((item) => {
+      if (!item.progress?.passed || isScriptApproved(item.scriptStatus)) return item;
+      changed = true;
+      return { ...item, scriptStatus: "通过", updatedAt: item.updatedAt || Date.now() };
+    });
+    if (changed) save("pm.materials", state.materials);
   }
 
   function isScriptRejected(status) {
@@ -2155,7 +2191,8 @@
   function updateBulkControl() {
     const field = $("#bulkField").value;
     $("#bulkScriptType").classList.toggle("hidden", field !== "scriptType");
-    $("#bulkTextValue").classList.toggle("hidden", field === "scriptType");
+    $("#bulkScriptStatus").classList.toggle("hidden", field !== "scriptStatus");
+    $("#bulkTextValue").classList.toggle("hidden", ["scriptType", "scriptStatus"].includes(field));
     $("#bulkTextValue").placeholder = {
       tagOne: "输入新的第一标签",
       tagTwo: "输入新的第二标签",
@@ -2171,7 +2208,11 @@
       return;
     }
     const field = $("#bulkField").value;
-    const value = field === "scriptType" ? $("#bulkScriptType").value : $("#bulkTextValue").value.trim();
+    const value = field === "scriptType"
+      ? $("#bulkScriptType").value
+      : field === "scriptStatus"
+        ? $("#bulkScriptStatus").value
+        : $("#bulkTextValue").value.trim();
     if (!value) {
       alert("请输入要批量修改的值。");
       return;
@@ -2179,8 +2220,14 @@
     state.materials = state.materials.map((item) => {
       if (!ids.includes(item.id)) return item;
       if (field === "scriptType") return { ...item, scriptType: value, updatedAt: Date.now() };
+      if (field === "scriptStatus") {
+        const progress = { ...(item.progress || {}) };
+        if (isScriptApproved(value)) progress.passed = true;
+        if (isScriptRejected(value)) progress.passed = false;
+        return { ...item, scriptStatus: value, progress, updatedAt: Date.now() };
+      }
       if (field === "vendor") return { ...item, vendor: value, updatedAt: Date.now() };
-      const tags = normalizedTags(item);
+      const tags = [...normalizedTags(item)];
       const indexMap = { tagOne: 0, tagTwo: 1, tagThree: 2 };
       tags[indexMap[field]] = value;
       return { ...item, tags, updatedAt: Date.now() };
@@ -2229,7 +2276,14 @@
 
   function renderStars(rating) {
     const score = Number(rating) || 0;
-    return `<span class="stars">${Array.from({ length: 5 }, (_, index) => index < score ? "★" : "☆").join("")}</span>`;
+    return `
+      <div class="star-editor" aria-label="数据评分">
+        ${Array.from({ length: 5 }, (_, index) => {
+          const value = index + 1;
+          return `<button class="star-btn ${value <= score ? "active" : ""}" data-rating="${value}" type="button" title="${value}星">${value <= score ? "★" : "☆"}</button>`;
+        }).join("")}
+      </div>
+    `;
   }
 
   function createPlaceholderCover(title) {

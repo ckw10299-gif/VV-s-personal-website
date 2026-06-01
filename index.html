@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260528-brand-vv" />
+    <link rel="stylesheet" href="styles.css?v=20260601-material-fields" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -245,12 +245,17 @@
               <option value="tagOne">批量修改：第一标签</option>
               <option value="tagTwo">批量修改：第二标签</option>
               <option value="tagThree">批量修改：第三标签</option>
+              <option value="scriptStatus">批量修改：脚本状态</option>
               <option value="vendor">批量修改：供应商</option>
             </select>
             <select id="bulkScriptType">
               <option value="AE脚本">AE脚本</option>
               <option value="UE脚本">UE脚本</option>
               <option value="真人脚本">真人脚本</option>
+            </select>
+            <select id="bulkScriptStatus" class="hidden">
+              <option value="通过">通过</option>
+              <option value="不通过">不通过</option>
             </select>
             <input id="bulkTextValue" placeholder="输入批量修改值" class="hidden" />
             <button class="primary-btn" id="applyBulkEdit" type="button">应用修改</button>
@@ -416,7 +421,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260528-brand-vv"></script>
-    <script src="app.js?v=20260528-brand-vv"></script>
+    <script src="supabase-config.js?v=20260601-material-fields"></script>
+    <script src="app.js?v=20260601-material-fields"></script>
   </body>
 </html>

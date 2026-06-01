@@ -1810,6 +1810,40 @@ details:not([open]) > .material-group-head h3::before {
   letter-spacing: 0;
 }
 
+.star-editor {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 5px 7px;
+  border: 1px solid rgba(242, 165, 31, .28);
+  border-radius: 999px;
+  background: rgba(255, 248, 221, .86);
+}
+
+.star-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  color: #c68a10;
+  background: transparent;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.star-btn.active {
+  color: #f2a51f;
+  text-shadow: 0 1px 0 rgba(75, 42, 7, .16);
+}
+
+.star-btn:hover {
+  color: #ffb703;
+  background: rgba(255, 216, 107, .24);
+  transform: translateY(-1px);
+}
+
 .empty-state {
   margin-top: 18px;
   padding: 28px;
