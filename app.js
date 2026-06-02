@@ -40,6 +40,7 @@
     cloudPausedUntil: 0,
     cloudRetryTimer: null,
     supabaseAuthKey: "",
+    openMemoryInputId: null,
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
     reviewDimension: "project",
@@ -1308,12 +1309,27 @@
     fields.forEach((id) => {
       const input = $(`#${id}`);
       if (!input) return;
+      input.addEventListener("mousedown", (event) => {
+        const menu = document.querySelector(`[data-menu-for="${id}"]`);
+        if (document.activeElement === input && state.openMemoryInputId === id && menu?.classList.contains("open")) {
+          event.preventDefault();
+          hideMemoryMenus();
+        }
+      });
       input.addEventListener("focus", () => renderMemoryMenu(id));
       input.addEventListener("input", () => renderMemoryMenu(id));
+      input.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") hideMemoryMenus();
+      });
+      input.addEventListener("blur", () => {
+        window.setTimeout(() => {
+          if (!input.closest(".memory-field")?.contains(document.activeElement)) hideMemoryMenus();
+        }, 0);
+      });
     });
-    document.addEventListener("click", (event) => {
+    document.addEventListener("pointerdown", (event) => {
       if (!event.target.closest(".memory-field")) hideMemoryMenus();
-    });
+    }, true);
   }
 
   function seedMaterialMemory() {
@@ -1363,6 +1379,7 @@
     if (!values.length) {
       menu.classList.remove("open");
       menu.innerHTML = "";
+      if (state.openMemoryInputId === inputId) state.openMemoryInputId = null;
       return;
     }
     menu.innerHTML = values.map((value) => `
@@ -1372,6 +1389,7 @@
       </div>
     `).join("");
     menu.classList.add("open");
+    state.openMemoryInputId = inputId;
     menu.querySelectorAll("[data-pick]").forEach((button) => {
       button.addEventListener("click", () => {
         input.value = button.dataset.pick;
@@ -1389,6 +1407,7 @@
   }
 
   function hideMemoryMenus() {
+    state.openMemoryInputId = null;
     document.querySelectorAll(".memory-menu").forEach((menu) => {
       menu.classList.remove("open");
       menu.innerHTML = "";
