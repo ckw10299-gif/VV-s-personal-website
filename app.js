@@ -1177,12 +1177,16 @@
     $("#exportMaterials").addEventListener("click", exportMaterials);
     $("#progressPassed").addEventListener("change", (event) => {
       if (event.target.checked) setScriptStatusRadio("通过");
+      if (!event.target.checked) {
+        const status = document.querySelector('input[name="scriptStatus"]:checked')?.value || "";
+        if (isScriptApproved(status)) setScriptStatusRadio("");
+      }
     });
     document.querySelectorAll('input[name="scriptStatus"]').forEach((input) => {
       input.addEventListener("change", () => {
         if (!input.checked) return;
         if (input.value === "通过") $("#progressPassed").checked = true;
-        if (input.value === "不通过") $("#progressPassed").checked = false;
+        if (input.value !== "通过") $("#progressPassed").checked = false;
       });
     });
     initMaterialStatsControls();
@@ -1209,7 +1213,8 @@
           recovered: $("#progressRecovered").checked,
           reviewSheet: $("#progressReviewSheet").checked
         };
-        const scriptStatus = progress.passed ? "通过" : formData.get("scriptStatus") || "";
+        const rawScriptStatus = formData.get("scriptStatus") || "";
+        const scriptStatus = progress.passed ? "通过" : isScriptApproved(rawScriptStatus) ? "" : rawScriptStatus;
         const payload = {
           id,
           title: $("#materialTitle").value.trim(),
@@ -2145,7 +2150,13 @@
       if (item.id !== id) return item;
       const progress = { ...(item.progress || {}) };
       progress[key] = !progress[key];
-      const scriptStatus = key === "passed" && progress.passed ? "通过" : item.scriptStatus;
+      const scriptStatus = key === "passed"
+        ? progress.passed
+          ? "通过"
+          : isScriptApproved(item.scriptStatus)
+            ? ""
+            : item.scriptStatus
+        : item.scriptStatus;
       return { ...item, progress, scriptStatus, updatedAt: Date.now() };
     });
     save("pm.materials", state.materials);
