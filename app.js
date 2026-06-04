@@ -1713,7 +1713,7 @@
 
   async function renderMaterials() {
     const grid = $("#materialGrid");
-    syncProgressPassedToStatus();
+    normalizeMaterialStatuses();
     renderMaterialStats();
     renderMaterialFilterOptions();
     renderMaterialOptions();
@@ -1947,7 +1947,8 @@
     return state.materials.filter((item) => {
       const tags = normalizedTags(item);
       const filters = state.materialFilters;
-      const progressMatch = !filters.progress || Boolean(item.progress?.[filters.progress]);
+      const progress = normalizeProgress(item.progress);
+      const progressMatch = !filters.progress || progress[filters.progress] === true;
       const weekMatch = !filters.week || getWeekRangeLabel(item.date) === filters.week;
       const scriptTypeMatch = !filters.scriptType || normalizedScriptType(item) === filters.scriptType;
       const scriptStatusMatch = !filters.scriptStatus
@@ -1972,7 +1973,7 @@
     }
     const rows = materials.map((item) => {
       const tags = normalizedTags(item);
-      const progress = item.progress || {};
+      const progress = normalizeProgress(item.progress);
       return {
         "所属项目": item.project || "未归属项目",
         "周时间": getWeekRangeLabel(item.date),
@@ -2096,7 +2097,8 @@
       ["feedback", "反馈"],
       ["recovered", "回收"]
     ];
-    return items.map(([key, label]) => `<button class="progress-pill ${progress[key] ? "on" : ""}" data-progress="${key}" type="button">${label}</button>`).join("");
+    const normalizedProgress = normalizeProgress(progress);
+    return items.map(([key, label]) => `<button class="progress-pill ${normalizedProgress[key] ? "on" : ""}" data-progress="${key}" type="button">${label}</button>`).join("");
   }
 
   function openMaterialEditor(id) {
@@ -2109,11 +2111,12 @@
     setScriptTypeRadio(normalizedScriptType(item));
     $("#scriptLink").value = item.scriptLink || "";
     setScriptStatusRadio(item.scriptStatus || "");
-    $("#progressPassed").checked = Boolean(item.progress?.passed);
-    $("#progressPushed").checked = Boolean(item.progress?.pushed);
-    $("#progressFeedback").checked = Boolean(item.progress?.feedback);
-    $("#progressRecovered").checked = Boolean(item.progress?.recovered);
-    $("#progressReviewSheet").checked = Boolean(item.progress?.reviewSheet);
+    const progress = normalizeProgress(item.progress);
+    $("#progressPassed").checked = progress.passed;
+    $("#progressPushed").checked = progress.pushed;
+    $("#progressFeedback").checked = progress.feedback;
+    $("#progressRecovered").checked = progress.recovered;
+    $("#progressReviewSheet").checked = progress.reviewSheet;
     $("#vendorName").value = item.vendor || "";
     const tags = normalizedTags(item);
     $("#tagOne").value = tags[0] || "";
@@ -2148,16 +2151,9 @@
   function toggleMaterialProgress(id, key) {
     state.materials = state.materials.map((item) => {
       if (item.id !== id) return item;
-      const progress = { ...(item.progress || {}) };
+      const progress = normalizeProgress(item.progress);
       progress[key] = !progress[key];
-      const scriptStatus = key === "passed"
-        ? progress.passed
-          ? "通过"
-          : isScriptApproved(item.scriptStatus)
-            ? ""
-            : item.scriptStatus
-        : item.scriptStatus;
-      return { ...item, progress, scriptStatus, updatedAt: Date.now() };
+      return normalizeMaterialStatus({ ...item, progress, updatedAt: Date.now() });
     });
     save("pm.materials", state.materials);
     renderMaterials();
@@ -2171,14 +2167,36 @@
     renderMaterials();
   }
 
-  function syncProgressPassedToStatus() {
+  function normalizeMaterialStatuses() {
     let changed = false;
     state.materials = state.materials.map((item) => {
-      if (!item.progress?.passed || isScriptApproved(item.scriptStatus)) return item;
-      changed = true;
-      return { ...item, scriptStatus: "通过", updatedAt: item.updatedAt || Date.now() };
+      const normalized = normalizeMaterialStatus(item);
+      if (normalized !== item) changed = true;
+      return normalized;
     });
     if (changed) save("pm.materials", state.materials);
+  }
+
+  function normalizeMaterialStatus(item) {
+    const progress = normalizeProgress(item.progress);
+    const scriptStatus = progress.passed
+      ? "通过"
+      : isScriptApproved(item.scriptStatus)
+        ? ""
+        : item.scriptStatus || "";
+    const sameProgress = ["reviewSheet", "passed", "pushed", "feedback", "recovered"].every((key) => Boolean(item.progress?.[key]) === progress[key]);
+    if (sameProgress && (item.scriptStatus || "") === scriptStatus) return item;
+    return { ...item, progress, scriptStatus, updatedAt: Date.now() };
+  }
+
+  function normalizeProgress(progress = {}) {
+    return {
+      reviewSheet: progress.reviewSheet === true,
+      passed: progress.passed === true,
+      pushed: progress.pushed === true,
+      feedback: progress.feedback === true,
+      recovered: progress.recovered === true
+    };
   }
 
   function isScriptRejected(status) {
@@ -2251,10 +2269,10 @@
       if (!ids.includes(item.id)) return item;
       if (field === "scriptType") return { ...item, scriptType: value, updatedAt: Date.now() };
       if (field === "scriptStatus") {
-        const progress = { ...(item.progress || {}) };
+        const progress = normalizeProgress(item.progress);
         if (isScriptApproved(value)) progress.passed = true;
         if (isScriptRejected(value)) progress.passed = false;
-        return { ...item, scriptStatus: value, progress, updatedAt: Date.now() };
+        return normalizeMaterialStatus({ ...item, scriptStatus: value, progress, updatedAt: Date.now() });
       }
       if (field === "vendor") return { ...item, vendor: value, updatedAt: Date.now() };
       const tags = [...normalizedTags(item)];
