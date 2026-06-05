@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260605-idea-images" />
+    <link rel="stylesheet" href="styles.css?v=20260605-idea-image-modal" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -401,6 +401,16 @@
       </div>
     </dialog>
 
+    <dialog id="ideaImageDialog" class="modal media-modal image-modal">
+      <div class="modal-box">
+        <div class="modal-head">
+          <h2>脑暴图片</h2>
+          <button class="icon-btn" id="closeIdeaImage" title="关闭">×</button>
+        </div>
+        <img id="ideaImagePreview" alt="脑暴图片预览" />
+      </div>
+    </dialog>
+
     <dialog id="docDialog" class="modal">
       <form method="dialog" class="modal-box" id="docForm">
         <div class="modal-head">
@@ -422,7 +432,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260605-idea-images"></script>
-    <script src="app.js?v=20260605-idea-images"></script>
+    <script src="supabase-config.js?v=20260605-idea-image-modal"></script>
+    <script src="app.js?v=20260605-idea-image-modal"></script>
   </body>
 </html>

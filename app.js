@@ -43,6 +43,7 @@
     openMemoryInputId: null,
     pendingIdeaImages: [],
     ideaImageUrls: [],
+    activeIdeaImageUrl: "",
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
     reviewDimension: "project",
@@ -1429,6 +1430,11 @@
 
   function bindBrain() {
     $("#ideaInput").addEventListener("paste", handleIdeaPaste);
+    $("#closeIdeaImage").addEventListener("click", closeIdeaImagePreview);
+    $("#ideaImageDialog").addEventListener("close", closeIdeaImagePreview);
+    $("#ideaImageDialog").addEventListener("click", (event) => {
+      if (event.target.id === "ideaImageDialog") closeIdeaImagePreview();
+    });
     $("#ideaForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const text = $("#ideaInput").value.trim();
@@ -2461,9 +2467,7 @@
     });
     $("#ideaBoard").querySelectorAll("[data-idea-image]").forEach((slot) => {
       slot.addEventListener("click", async () => {
-        const file = await getFile(slot.dataset.ideaImage);
-        if (!file) return;
-        window.open(URL.createObjectURL(file), "_blank");
+        await openIdeaImagePreview(slot.dataset.ideaImage);
       });
     });
     $("#ideaBoard").querySelectorAll("[data-action='delete']").forEach((button) => {
@@ -2498,6 +2502,24 @@
         .filter((entry) => entry?.key);
     }
     return idea.imageKey ? [{ key: idea.imageKey, name: idea.imageName || "" }] : [];
+  }
+
+  async function openIdeaImagePreview(key) {
+    const file = await getFile(key);
+    if (!file) return;
+    closeIdeaImagePreview({ keepDialogOpen: true });
+    state.activeIdeaImageUrl = URL.createObjectURL(file);
+    $("#ideaImagePreview").src = state.activeIdeaImageUrl;
+    $("#ideaImageDialog").showModal();
+  }
+
+  function closeIdeaImagePreview(options = {}) {
+    if (state.activeIdeaImageUrl) {
+      URL.revokeObjectURL(state.activeIdeaImageUrl);
+      state.activeIdeaImageUrl = "";
+    }
+    $("#ideaImagePreview").removeAttribute("src");
+    if (!options.keepDialogOpen && $("#ideaImageDialog").open) $("#ideaImageDialog").close();
   }
 
   function renderDocs() {
