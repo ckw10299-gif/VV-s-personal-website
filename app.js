@@ -41,6 +41,8 @@
     cloudRetryTimer: null,
     supabaseAuthKey: "",
     openMemoryInputId: null,
+    pendingIdeaImages: [],
+    ideaImageUrls: [],
     statsYear: new Date().getFullYear(),
     statsMonth: new Date().getMonth() + 1,
     reviewDimension: "project",
@@ -858,6 +860,11 @@
     for (const doc of localData.docs) {
       if (doc.attachmentKey) await copyLocalFileToCloud(doc.attachmentKey);
     }
+    for (const idea of localData.ideas) {
+      for (const image of ideaImageEntries(idea)) {
+        await copyLocalFileToCloud(image.key);
+      }
+    }
     state.todos = localData.todos;
     state.goals = localData.goals;
     state.materials = localData.materials;
@@ -885,7 +892,8 @@
     };
     const fileKeys = [
       ...backup.materials.flatMap((item) => [item.videoKey, item.metricKey]),
-      ...backup.docs.map((doc) => doc.attachmentKey)
+      ...backup.docs.map((doc) => doc.attachmentKey),
+      ...backup.ideas.flatMap((idea) => ideaImageEntries(idea).map((image) => image.key))
     ].filter(Boolean);
     for (const key of [...new Set(fileKeys)]) {
       const file = await getLocalFile(key);
@@ -1420,13 +1428,22 @@
   }
 
   function bindBrain() {
-    $("#ideaForm").addEventListener("submit", (event) => {
+    $("#ideaInput").addEventListener("paste", handleIdeaPaste);
+    $("#ideaForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const text = $("#ideaInput").value.trim();
-      if (!text) return;
-      state.ideas.unshift({ id: crypto.randomUUID(), text, createdAt: Date.now() });
+      if (!text && !state.pendingIdeaImages.length) return;
+      const id = crypto.randomUUID();
+      const imageKeys = [];
+      for (const [index, item] of state.pendingIdeaImages.entries()) {
+        const key = `idea-${id}-${index}-${Date.now()}`;
+        await putFile(key, item.file);
+        imageKeys.push({ key, name: item.file.name || `脑暴图片-${index + 1}.png`, type: item.file.type || "image/png" });
+      }
+      state.ideas.unshift({ id, text, imageKeys, createdAt: Date.now() });
       save("pm.ideas", state.ideas);
       $("#ideaInput").value = "";
+      clearPendingIdeaImages();
       renderIdeas();
     });
     $("#openDocModal").addEventListener("click", () => $("#docDialog").showModal());
@@ -1460,6 +1477,66 @@
       $("#docDialog").close();
       renderDocs();
     });
+  }
+
+  function handleIdeaPaste(event) {
+    const files = [...(event.clipboardData?.items || [])]
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    if (!files.length) return;
+    event.preventDefault();
+    const text = event.clipboardData?.getData("text/plain") || "";
+    if (text) insertTextAtCursor($("#ideaInput"), text);
+    files.forEach((file) => {
+      state.pendingIdeaImages.push({
+        id: crypto.randomUUID(),
+        file,
+        previewUrl: URL.createObjectURL(file)
+      });
+    });
+    renderIdeaPastePreview();
+  }
+
+  function insertTextAtCursor(input, text) {
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.value = `${input.value.slice(0, start)}${text}${input.value.slice(end)}`;
+    const next = start + text.length;
+    input.setSelectionRange(next, next);
+  }
+
+  function renderIdeaPastePreview() {
+    const preview = $("#ideaPastePreview");
+    if (!state.pendingIdeaImages.length) {
+      preview.hidden = true;
+      preview.innerHTML = "";
+      return;
+    }
+    preview.hidden = false;
+    preview.innerHTML = state.pendingIdeaImages.map((item, index) => `
+      <div class="idea-image-preview" data-id="${item.id}">
+        <img src="${escapeAttr(item.previewUrl)}" alt="待加入脑暴图片 ${index + 1}" />
+        <button class="idea-image-remove" type="button" title="移除图片">×</button>
+      </div>
+    `).join("");
+    preview.querySelectorAll(".idea-image-remove").forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.closest(".idea-image-preview").dataset.id;
+        const item = state.pendingIdeaImages.find((entry) => entry.id === id);
+        if (item?.previewUrl) URL.revokeObjectURL(item.previewUrl);
+        state.pendingIdeaImages = state.pendingIdeaImages.filter((entry) => entry.id !== id);
+        renderIdeaPastePreview();
+      });
+    });
+  }
+
+  function clearPendingIdeaImages() {
+    state.pendingIdeaImages.forEach((item) => {
+      if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+    });
+    state.pendingIdeaImages = [];
+    renderIdeaPastePreview();
   }
 
   function renderAll() {
@@ -2363,20 +2440,64 @@
   }
 
   function renderIdeas() {
+    state.ideaImageUrls.forEach((url) => URL.revokeObjectURL(url));
+    state.ideaImageUrls = [];
     $("#ideaBoard").innerHTML = state.ideas.map((idea) => `
       <article class="note" data-id="${idea.id}">
-        <p>${escapeHtml(idea.text)}</p>
+        ${idea.text ? `<p>${escapeHtml(idea.text)}</p>` : ""}
+        ${renderIdeaImages(idea)}
         <div class="note-meta">${formatTime(idea.createdAt)} · <button class="link-btn" data-action="delete">删除</button></div>
       </article>
     `).join("") || `<div class="empty-state">随手写一条灵感，它会以便签形式留在这里。</div>`;
+    $("#ideaBoard").querySelectorAll("[data-idea-image]").forEach(async (slot) => {
+      const file = await getFile(slot.dataset.ideaImage);
+      if (!file) {
+        slot.innerHTML = `<span>图片暂时无法读取</span>`;
+        return;
+      }
+      const url = URL.createObjectURL(file);
+      state.ideaImageUrls.push(url);
+      slot.innerHTML = `<img src="${escapeAttr(url)}" alt="脑暴图片" />`;
+    });
+    $("#ideaBoard").querySelectorAll("[data-idea-image]").forEach((slot) => {
+      slot.addEventListener("click", async () => {
+        const file = await getFile(slot.dataset.ideaImage);
+        if (!file) return;
+        window.open(URL.createObjectURL(file), "_blank");
+      });
+    });
     $("#ideaBoard").querySelectorAll("[data-action='delete']").forEach((button) => {
-      button.addEventListener("click", () => {
+      button.addEventListener("click", async () => {
         const id = button.closest(".note").dataset.id;
+        const idea = state.ideas.find((idea) => idea.id === id);
+        for (const image of ideaImageEntries(idea)) {
+          await deleteFile(image.key);
+        }
         state.ideas = state.ideas.filter((idea) => idea.id !== id);
         save("pm.ideas", state.ideas);
         renderIdeas();
       });
     });
+  }
+
+  function renderIdeaImages(idea) {
+    const images = ideaImageEntries(idea);
+    if (!images.length) return "";
+    return `
+      <div class="idea-image-grid">
+        ${images.map((image) => `<button class="idea-image-slot" data-idea-image="${escapeAttr(image.key)}" type="button"><span>读取图片中...</span></button>`).join("")}
+      </div>
+    `;
+  }
+
+  function ideaImageEntries(idea) {
+    if (!idea) return [];
+    if (Array.isArray(idea.imageKeys)) {
+      return idea.imageKeys
+        .map((entry) => typeof entry === "string" ? { key: entry } : entry)
+        .filter((entry) => entry?.key);
+    }
+    return idea.imageKey ? [{ key: idea.imageKey, name: idea.imageName || "" }] : [];
   }
 
   function renderDocs() {
