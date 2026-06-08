@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260605-idea-image-modal" />
+    <link rel="stylesheet" href="styles.css?v=20260608-goals-knowledge-weekly" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -13,13 +13,13 @@
           <span class="brand-mark">VV</span>
           <div>
             <strong>躁侯退休（VV版）</strong>
-            <small>待办 · 素材 · 文档</small>
+              <small>待办 · 素材 · 知识</small>
           </div>
         </div>
         <nav class="nav-tabs" aria-label="主模块">
           <button class="nav-tab active" data-view="todo">每日待办</button>
           <button class="nav-tab" data-view="materials">素材库</button>
-          <button class="nav-tab" data-view="brain">脑暴文档</button>
+          <button class="nav-tab" data-view="brain">知识沉淀</button>
         </nav>
         <section class="sidebar-cloud-panel" id="cloudPanel">
           <div class="profile-row">
@@ -91,7 +91,10 @@
               </label>
               <label>目标标题<input id="goalTitle" required maxlength="80" /></label>
               <label>目标 DDL<input id="goalDDL" type="date" /></label>
+              <label>完成进度<input id="goalProgress" type="number" min="0" max="100" step="1" value="0" /></label>
+              <label>完成时间<input id="goalCompletedAt" type="date" /></label>
               <label class="goal-detail-field">目标详情<textarea id="goalDetail" rows="3"></textarea></label>
+              <label class="goal-detail-field">进度备注<textarea id="goalProgressNote" rows="2" placeholder="例如：时间到了，但实际只完成了 88%"></textarea></label>
               <div class="goal-form-actions">
                 <button class="primary-btn" id="goalSubmitBtn" type="submit">新增目标</button>
                 <button class="secondary-btn ghost-btn" id="cancelGoalEdit" type="button" hidden>取消编辑</button>
@@ -165,21 +168,24 @@
                 <small>脚本状态为不通过</small>
               </article>
             </div>
+            <details class="vendor-summary" id="allVendorSummary">
+              <summary>供应商分布 <span id="allVendorSummaryCount">0 个供应商</span></summary>
+              <div class="vendor-list" id="allVendorList"></div>
+            </details>
             <div class="dashboard-controls">
               <div>
-                <p class="eyebrow">月度概览</p>
-                <h2>月度脚本概览</h2>
+                <p class="eyebrow">周度概览</p>
+                <h2>周度脚本概览</h2>
               </div>
               <div class="month-controls">
-                <label>年份<input id="statsYear" type="number" min="2000" max="2100" /></label>
-                <label>月份<select id="statsMonth"></select></label>
+                <label>归属周<select id="statsWeek"></select></label>
               </div>
             </div>
             <div class="stats-grid">
               <article class="stat-card total">
                 <span>总产出脚本</span>
                 <strong id="totalScriptCount">0</strong>
-                <small>当月全部素材</small>
+                <small>所选周全部素材</small>
               </article>
               <article class="stat-card approved">
                 <span>通过脚本</span>
@@ -191,6 +197,15 @@
                 <strong id="rejectedScriptCount">0</strong>
                 <small>脚本状态为不通过</small>
               </article>
+              <article class="stat-card approved">
+                <span>通过率</span>
+                <strong id="weeklyPassRate">0%</strong>
+                <small>通过 / 总产出</small>
+              </article>
+            </div>
+            <div class="weekly-vendor-panel">
+              <h3>所选周供应商分布</h3>
+              <div class="vendor-list" id="weeklyVendorList"></div>
             </div>
             <div class="review-panel">
               <div class="dashboard-controls">
@@ -291,6 +306,16 @@
               </div>
               <div class="doc-list" id="docList"></div>
             </section>
+
+            <section class="panel doc-summary-panel">
+              <div class="section-head compact">
+                <div>
+                  <p class="eyebrow">分类速览</p>
+                  <h2>文档分类</h2>
+                </div>
+              </div>
+              <div class="doc-category-summary" id="docCategorySummary"></div>
+            </section>
           </div>
         </section>
       </main>
@@ -371,6 +396,7 @@
           <label class="memory-field">第三标签<input id="tagThree" required autocomplete="off" /><div class="memory-menu" data-menu-for="tagThree"></div></label>
         </div>
         <label>上传时间<input id="materialDate" type="date" required /></label>
+        <label>素材归属日期<input id="materialBelongDate" type="date" required /></label>
         <div class="two-cols">
           <label>数据截图（可选）<input id="materialMetric" type="file" accept="image/*" /></label>
           <label>数据评分
@@ -420,10 +446,17 @@
           </div>
           <button class="icon-btn" type="button" id="closeDocDialog" title="关闭">×</button>
         </div>
+        <label>文档分类
+          <select id="docCategory">
+            <option value="个人深度文档">个人深度文档</option>
+            <option value="工作相关文档">工作相关文档</option>
+            <option value="专业文档">专业文档</option>
+            <option value="其他">其他</option>
+          </select>
+        </label>
         <label>标题<input id="docTitle" required maxlength="80" /></label>
-        <label>正文<textarea id="docBody" rows="7"></textarea></label>
-        <label>链接<input id="docLink" type="url" placeholder="https://..." /></label>
-        <label>附件<input id="docAttachment" type="file" /></label>
+        <label>文档 URL<input id="docLink" type="url" placeholder="https://..." required /></label>
+        <label>备注<textarea id="docBody" rows="4" placeholder="可以补充这份文档的用途、结论或后续动作"></textarea></label>
         <div class="form-actions">
           <button class="ghost-btn" type="button" id="cancelDoc">取消</button>
           <button class="primary-btn" type="submit">保存文档</button>
@@ -432,7 +465,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260605-idea-image-modal"></script>
-    <script src="app.js?v=20260605-idea-image-modal"></script>
+    <script src="supabase-config.js?v=20260608-goals-knowledge-weekly"></script>
+    <script src="app.js?v=20260608-goals-knowledge-weekly"></script>
   </body>
 </html>

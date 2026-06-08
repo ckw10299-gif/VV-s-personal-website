@@ -16,6 +16,8 @@
     growth: "个人成长",
     onboarding: "新人课程"
   };
+
+  const DOC_CATEGORIES = ["个人深度文档", "工作相关文档", "专业文档", "其他"];
   const TYPE_CLASS = {
     business: "business",
     pm: "pm",
@@ -44,8 +46,7 @@
     pendingIdeaImages: [],
     ideaImageUrls: [],
     activeIdeaImageUrl: "",
-    statsYear: new Date().getFullYear(),
-    statsMonth: new Date().getMonth() + 1,
+    statsWeek: getWeekRangeLabel(toISODate(new Date())),
     reviewDimension: "project",
     reviewWeek: "",
     goals: loadPrivateArray("pm.goals"),
@@ -1067,13 +1068,18 @@
     $("#goalForm").addEventListener("submit", (event) => {
       event.preventDefault();
       const editing = state.goals.find((goal) => goal.id === state.editingGoalId);
+      const progress = clampPercent($("#goalProgress").value);
+      const completedAt = progress >= 100 ? ($("#goalCompletedAt").value || editing?.completedAt || toISODate(new Date())) : "";
       const goal = {
         id: editing?.id || crypto.randomUUID(),
         type: $("#goalType").value,
         title: $("#goalTitle").value.trim(),
         detail: $("#goalDetail").value.trim(),
         ddl: $("#goalDDL").value,
-        done: editing?.done || false,
+        progress,
+        progressNote: $("#goalProgressNote").value.trim(),
+        completedAt,
+        done: progress >= 100 && Boolean(completedAt),
         createdAt: editing?.createdAt || Date.now(),
         updatedAt: Date.now()
       };
@@ -1177,6 +1183,7 @@
     $("#openMaterialModal").addEventListener("click", () => {
       resetMaterialForm();
       $("#materialDate").value = toISODate(new Date());
+      $("#materialBelongDate").value = toISODate(new Date());
       $("#materialDialog").showModal();
     });
     $("#cancelMaterial").addEventListener("click", closeMaterialDialog);
@@ -1235,6 +1242,7 @@
           vendor: $("#vendorName").value.trim(),
           tags: [$("#tagOne").value.trim(), $("#tagTwo").value.trim(), $("#tagThree").value.trim()],
           date: $("#materialDate").value,
+          belongDate: $("#materialBelongDate").value || $("#materialDate").value,
           videoKey,
           videoName: videoFile?.name || editing?.videoName || "",
           metricKey,
@@ -1263,17 +1271,8 @@
   }
 
   function initMaterialStatsControls() {
-    $("#statsYear").value = state.statsYear;
-    $("#statsMonth").innerHTML = Array.from({ length: 12 }, (_, index) => {
-      const month = index + 1;
-      return `<option value="${month}" ${month === state.statsMonth ? "selected" : ""}>${month}月</option>`;
-    }).join("");
-    $("#statsYear").addEventListener("input", (event) => {
-      state.statsYear = Number(event.target.value) || new Date().getFullYear();
-      renderMaterialStats();
-    });
-    $("#statsMonth").addEventListener("change", (event) => {
-      state.statsMonth = Number(event.target.value);
+    $("#statsWeek").addEventListener("change", (event) => {
+      state.statsWeek = event.target.value;
       renderMaterialStats();
     });
     $("#reviewDimension").addEventListener("change", (event) => {
@@ -1459,23 +1458,21 @@
       event.preventDefault();
       const body = $("#docBody").value.trim();
       const link = $("#docLink").value.trim();
-      const file = $("#docAttachment").files[0];
-      if (!body && !link && !file) {
-        $("#docBody").setCustomValidity("请至少填写正文、链接或上传附件中的一项");
-        $("#docBody").reportValidity();
+      if (!link) {
+        $("#docLink").setCustomValidity("请填写文档 URL");
+        $("#docLink").reportValidity();
         return;
       }
-      $("#docBody").setCustomValidity("");
+      $("#docLink").setCustomValidity("");
       const id = crypto.randomUUID();
-      const attachmentKey = file ? `doc-${id}` : "";
-      if (file) await putFile(attachmentKey, file);
       state.docs.unshift({
         id,
+        category: $("#docCategory").value || "其他",
         title: $("#docTitle").value.trim(),
         body,
         link,
-        attachmentKey,
-        attachmentName: file?.name || "",
+        attachmentKey: "",
+        attachmentName: "",
         createdAt: Date.now()
       });
       save("pm.docs", state.docs);
@@ -1556,8 +1553,9 @@
 
   function renderGoals() {
     const total = state.goals.length;
-    const done = state.goals.filter((goal) => goal.done).length;
-    $("#goalsSummary").textContent = `${done}/${total} 已达成`;
+    const done = state.goals.filter((goal) => isGoalDone(goal)).length;
+    const averageProgress = total ? Math.round(state.goals.reduce((sum, goal) => sum + goalProgress(goal), 0) / total) : 0;
+    $("#goalsSummary").textContent = `已完成 ${done}/${total} · 总进度 ${averageProgress}%`;
     const groups = ["业务产出", "其他维度"].map((type) => [
       type,
       state.goals.filter((goal) => goal.type === type)
@@ -1567,22 +1565,28 @@
         <summary class="goal-group-title">
           <span class="goal-group-caret">▾</span>
           <h3>${escapeHtml(type)}</h3>
-          <span>${goals.length} 个目标 · ${goals.filter((goal) => goal.done).length} 已达成</span>
+          <span>${goals.length} 个目标 · ${goals.filter((goal) => isGoalDone(goal)).length} 已达成</span>
         </summary>
         <div class="goal-list">
           ${goals.length ? goals.map((goal) => `
-            <article class="goal-item ${goal.done ? "done" : ""} ${state.editingGoalId === goal.id ? "editing" : ""}" data-id="${goal.id}">
-              <button class="goal-achieve ${goal.done ? "is-done" : ""}" data-action="toggle" type="button" title="${goal.done ? "标记为未达成" : "标记为已达成"}">
+            <article class="goal-item ${isGoalDone(goal) ? "done" : ""} ${state.editingGoalId === goal.id ? "editing" : ""}" data-id="${goal.id}">
+              <button class="goal-achieve ${isGoalDone(goal) ? "is-done" : ""}" data-action="toggle" type="button" title="${isGoalDone(goal) ? "标记为未达成" : "标记为已达成"}">
                 <span class="goal-checkmark">✓</span>
-                <span>${goal.done ? "已达成" : "达成"}</span>
+                <span>${isGoalDone(goal) ? "已达成" : "达成"}</span>
               </button>
               <div class="goal-content">
                 <div class="goal-row">
                   <span class="goal-type-tag ${type === "业务产出" ? "business" : "other"}">${escapeHtml(goal.type)}</span>
                   <strong>${escapeHtml(goal.title)}</strong>
                   <span class="goal-ddl">${goal.ddl ? `DDL：${escapeHtml(goal.ddl)}` : "阶段目标"}</span>
+                  ${goal.completedAt ? `<span class="goal-ddl completed">完成：${escapeHtml(goal.completedAt)}</span>` : ""}
                 </div>
                 ${goal.detail ? `<p>${escapeHtml(goal.detail)}</p>` : `<p class="muted-note">暂无详情</p>`}
+                <div class="goal-progress-line">
+                  <span>完成进度 ${goalProgress(goal)}%</span>
+                  <div class="goal-progress-bar"><i style="width:${goalProgress(goal)}%"></i></div>
+                </div>
+                ${goal.progressNote ? `<p class="goal-progress-note">${escapeHtml(goal.progressNote)}</p>` : ""}
               </div>
               <div class="goal-item-actions">
                 <button class="link-btn" data-action="edit" type="button">编辑</button>
@@ -1599,7 +1603,32 @@
         if (!item) return;
         const id = item.dataset.id;
         if (node.dataset.action === "toggle") {
-          state.goals = state.goals.map((goal) => goal.id === id ? { ...goal, done: !goal.done } : goal);
+          const goal = state.goals.find((entry) => entry.id === id);
+          if (!goal) return;
+          if (isGoalDone(goal)) {
+            state.goals = state.goals.map((entry) => entry.id === id ? {
+              ...entry,
+              done: false,
+              completedAt: "",
+              progress: Math.min(goalProgress(entry), 99),
+              updatedAt: Date.now()
+            } : entry);
+          } else {
+            const completedAt = prompt("请输入完成目标的日期（格式：YYYY-MM-DD）", toISODate(new Date()));
+            if (completedAt === null) return;
+            const cleanDate = completedAt.trim();
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+              alert("日期格式请填写为 YYYY-MM-DD，例如 2026-06-08。");
+              return;
+            }
+            state.goals = state.goals.map((entry) => entry.id === id ? {
+              ...entry,
+              done: true,
+              progress: 100,
+              completedAt: cleanDate,
+              updatedAt: Date.now()
+            } : entry);
+          }
         }
         if (node.dataset.action === "edit") {
           const goal = state.goals.find((item) => item.id === id);
@@ -1622,6 +1651,9 @@
     $("#goalTitle").value = goal.title;
     $("#goalDetail").value = goal.detail || "";
     $("#goalDDL").value = goal.ddl || "";
+    $("#goalProgress").value = String(goalProgress(goal));
+    $("#goalCompletedAt").value = goal.completedAt || "";
+    $("#goalProgressNote").value = goal.progressNote || "";
     $("#goalSubmitBtn").textContent = "保存修改";
     $("#cancelGoalEdit").hidden = false;
     renderGoals();
@@ -1631,8 +1663,24 @@
   function resetGoalForm() {
     state.editingGoalId = null;
     $("#goalForm").reset();
+    $("#goalProgress").value = "0";
+    $("#goalCompletedAt").value = "";
+    $("#goalProgressNote").value = "";
     $("#goalSubmitBtn").textContent = "新增目标";
     $("#cancelGoalEdit").hidden = true;
+  }
+
+  function goalProgress(goal) {
+    if (Number.isFinite(Number(goal?.progress))) return clampPercent(goal.progress);
+    return goal?.done ? 100 : 0;
+  }
+
+  function isGoalDone(goal) {
+    return Boolean(goal?.done) || goalProgress(goal) >= 100;
+  }
+
+  function clampPercent(value) {
+    return Math.min(100, Math.max(0, Math.round(Number(value) || 0)));
   }
 
   function renderCalendar() {
@@ -1797,8 +1845,8 @@
   async function renderMaterials() {
     const grid = $("#materialGrid");
     normalizeMaterialStatuses();
-    renderMaterialStats();
     renderMaterialFilterOptions();
+    renderMaterialStats();
     renderMaterialOptions();
     const filtered = getFilteredMaterials();
     $("#materialEmpty").style.display = filtered.length ? "none" : "block";
@@ -1835,6 +1883,7 @@
                 <label class="material-select-wrap"><input class="material-select" type="checkbox" data-id="${item.id}" />选择该素材</label>
                 <h3>${escapeHtml(item.title)}</h3>
                 <div class="material-date">记录时间：${item.date}</div>
+                <div class="material-date">归属周：${escapeHtml(getMaterialWeekLabel(item))}</div>
                 <div class="material-meta-line">脚本类型：${escapeHtml(normalizedScriptType(item))}</div>
                 <div class="material-meta-line">所属项目：${escapeHtml(item.project || "未归属项目")}</div>
                 <div class="material-meta-line">供应商：${escapeHtml(item.vendor || "未填写")}</div>
@@ -1917,17 +1966,41 @@
     $("#allScriptCount").textContent = state.materials.length;
     $("#allApprovedScriptCount").textContent = allApproved;
     $("#allRejectedScriptCount").textContent = allRejected;
+    renderVendorList("#allVendorList", state.materials);
+    $("#allVendorSummaryCount").textContent = `${vendorRows(state.materials).length} 个供应商`;
 
-    const monthly = state.materials.filter((item) => {
-      const date = parseISODate(item.date || toISODate(new Date()));
-      return date.getFullYear() === state.statsYear && date.getMonth() + 1 === state.statsMonth;
-    });
-    const approved = monthly.filter((item) => isScriptApproved(item.scriptStatus)).length;
-    const rejected = monthly.filter((item) => isScriptRejected(item.scriptStatus)).length;
+    const weekly = state.materials.filter((item) => getMaterialWeekLabel(item) === state.statsWeek);
+    const approved = weekly.filter((item) => isScriptApproved(item.scriptStatus)).length;
+    const rejected = weekly.filter((item) => isScriptRejected(item.scriptStatus)).length;
     $("#approvedScriptCount").textContent = approved;
-    $("#totalScriptCount").textContent = monthly.length;
+    $("#totalScriptCount").textContent = weekly.length;
     $("#rejectedScriptCount").textContent = rejected;
+    $("#weeklyPassRate").textContent = `${weekly.length ? Math.round((approved / weekly.length) * 100) : 0}%`;
+    renderVendorList("#weeklyVendorList", weekly);
     renderMaterialReview();
+  }
+
+  function vendorRows(materials) {
+    const groups = new Map();
+    materials.forEach((item) => {
+      const key = item.vendor || "未填写供应商";
+      groups.set(key, (groups.get(key) || 0) + 1);
+    });
+    return [...groups.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, "zh-CN"));
+  }
+
+  function renderVendorList(selector, materials) {
+    const rows = vendorRows(materials);
+    const node = $(selector);
+    if (!node) return;
+    node.innerHTML = rows.length ? rows.map((row) => `
+      <div class="vendor-row">
+        <span>${escapeHtml(row.name)}</span>
+        <strong>${row.count} 条</strong>
+      </div>
+    `).join("") : `<div class="inline-empty">暂无供应商数据。</div>`;
   }
 
   function renderMaterialReview() {
@@ -1983,7 +2056,7 @@
   }
 
   function getReviewMaterials() {
-    return state.materials.filter((item) => !state.reviewWeek || getWeekRangeLabel(item.date) === state.reviewWeek);
+    return state.materials.filter((item) => !state.reviewWeek || getMaterialWeekLabel(item) === state.reviewWeek);
   }
 
   function uniqueValues(values) {
@@ -1992,7 +2065,14 @@
   }
 
   function renderMaterialFilterOptions() {
-    const weekOptions = uniqueValues(state.materials.map((item) => getWeekRangeLabel(item.date))).map((value) => [value, value]);
+    const weekOptions = uniqueValues([
+      getWeekRangeLabel(toISODate(new Date())),
+      ...state.materials.map(getMaterialWeekLabel)
+    ]).map((value) => [value, value]);
+    if (!state.statsWeek || !weekOptions.some(([value]) => value === state.statsWeek)) {
+      state.statsWeek = weekOptions[0]?.[0] || getWeekRangeLabel(toISODate(new Date()));
+    }
+    fillSelect("#statsWeek", weekOptions, state.statsWeek);
     fillSelect("#filterWeek", [["", "全部周维度"], ...weekOptions], state.materialFilters.week);
     fillSelect("#reviewWeek", [["", "全部周维度"], ...weekOptions], state.reviewWeek);
     fillSelect("#filterScriptType", [
@@ -2032,7 +2112,7 @@
       const filters = state.materialFilters;
       const progress = normalizeProgress(item.progress);
       const progressMatch = !filters.progress || progress[filters.progress] === true;
-      const weekMatch = !filters.week || getWeekRangeLabel(item.date) === filters.week;
+      const weekMatch = !filters.week || getMaterialWeekLabel(item) === filters.week;
       const scriptTypeMatch = !filters.scriptType || normalizedScriptType(item) === filters.scriptType;
       const scriptStatusMatch = !filters.scriptStatus
         || (filters.scriptStatus === "approved" && isScriptApproved(item.scriptStatus))
@@ -2059,7 +2139,8 @@
       const progress = normalizeProgress(item.progress);
       return {
         "所属项目": item.project || "未归属项目",
-        "周时间": getWeekRangeLabel(item.date),
+        "周时间": getMaterialWeekLabel(item),
+        "素材归属日期": getMaterialBelongDate(item),
         "素材标题": item.title || "",
         "脚本类型": normalizedScriptType(item),
         "脚本状态": item.scriptStatus || "",
@@ -2111,10 +2192,18 @@
     URL.revokeObjectURL(url);
   }
 
+  function getMaterialBelongDate(item) {
+    return item?.belongDate || item?.date || toISODate(new Date());
+  }
+
+  function getMaterialWeekLabel(item) {
+    return getWeekRangeLabel(getMaterialBelongDate(item));
+  }
+
   function groupMaterials(materials) {
     const projects = materials.reduce((projectMap, item) => {
       const project = item.project?.trim() || "未归属项目";
-      const week = getWeekRangeLabel(item.date);
+      const week = getMaterialWeekLabel(item);
       const firstTag = normalizedTags(item)[0]?.trim() || "未分类";
       if (!projectMap.has(project)) projectMap.set(project, new Map());
       const weekMap = projectMap.get(project);
@@ -2144,7 +2233,7 @@
   }
 
   function getNewestDateFromTagMap(tagMap) {
-    const times = [...tagMap.values()].flat().map((item) => parseISODate(item.date || toISODate(new Date())).getTime());
+    const times = [...tagMap.values()].flat().map((item) => parseISODate(getMaterialBelongDate(item)).getTime());
     return Math.max(...times);
   }
 
@@ -2206,6 +2295,7 @@
     $("#tagTwo").value = tags[1] || "";
     $("#tagThree").value = tags[2] || "";
     $("#materialDate").value = item.date || toISODate(new Date());
+    $("#materialBelongDate").value = getMaterialBelongDate(item);
     $("#materialRating").value = String(item.rating || 0);
     $("#materialVideo").value = "";
     $("#materialMetric").value = "";
@@ -2217,6 +2307,7 @@
     $("#materialDialog .modal-head h2").textContent = "上传素材";
     $("#materialForm").reset();
     $("#materialRating").value = "0";
+    $("#materialBelongDate").value = toISODate(new Date());
     setScriptTypeRadio("AE脚本");
     setScriptStatusRadio("");
     $("#progressPassed").checked = false;
@@ -2523,18 +2614,33 @@
   }
 
   function renderDocs() {
-    $("#docList").innerHTML = state.docs.map((doc) => `
-      <article class="doc-item" data-id="${doc.id}">
-        <h3>${escapeHtml(doc.title)}</h3>
-        <div class="doc-meta">${formatTime(doc.createdAt)}</div>
-        ${doc.body ? `<p class="doc-body">${escapeHtml(doc.body)}</p>` : ""}
-        <div class="card-actions">
-          ${doc.link ? `<a class="link-btn doc-link" href="${escapeAttr(doc.link)}" target="_blank" rel="noreferrer">打开链接</a>` : ""}
-          ${doc.attachmentKey ? `<button class="link-btn" data-action="download">查看附件：${escapeHtml(doc.attachmentName)}</button>` : ""}
-          <button class="link-btn" data-action="delete">删除</button>
+    renderDocCategorySummary();
+    const groups = DOC_CATEGORIES.map((category) => [
+      category,
+      state.docs.filter((doc) => normalizedDocCategory(doc) === category)
+    ]);
+    $("#docList").innerHTML = groups.map(([category, docs]) => `
+      <details class="doc-category-group" open>
+        <summary>
+          <strong>${escapeHtml(category)}</strong>
+          <span>${docs.length} 份</span>
+        </summary>
+        <div class="doc-category-list">
+          ${docs.length ? docs.map((doc) => `
+            <article class="doc-item" data-id="${doc.id}">
+              <h3>${escapeHtml(doc.title)}</h3>
+              <div class="doc-meta">${formatTime(doc.createdAt)} · ${escapeHtml(normalizedDocCategory(doc))}</div>
+              ${doc.body ? `<p class="doc-body">${escapeHtml(doc.body)}</p>` : ""}
+              <div class="card-actions">
+                ${doc.link ? `<a class="link-btn doc-link" href="${escapeAttr(doc.link)}" target="_blank" rel="noreferrer">打开链接</a>` : ""}
+                ${doc.attachmentKey ? `<button class="link-btn" data-action="download">查看旧附件：${escapeHtml(doc.attachmentName)}</button>` : ""}
+                <button class="link-btn" data-action="delete">删除</button>
+              </div>
+            </article>
+          `).join("") : `<div class="inline-empty">这个分类还没有文档。</div>`}
         </div>
-      </article>
-    `).join("") || `<div class="empty-state">还没有深度文档，可以新建一条长文本、链接或附件沉淀。</div>`;
+      </details>
+    `).join("") || `<div class="empty-state">还没有深度文档，可以新建一条 URL 沉淀。</div>`;
     $("#docList").querySelectorAll("button").forEach((button) => {
       button.addEventListener("click", async () => {
         const id = button.closest(".doc-item").dataset.id;
@@ -2552,6 +2658,25 @@
         }
       });
     });
+  }
+
+  function renderDocCategorySummary() {
+    const total = state.docs.length;
+    $("#docCategorySummary").innerHTML = DOC_CATEGORIES.map((category) => {
+      const count = state.docs.filter((doc) => normalizedDocCategory(doc) === category).length;
+      const rate = total ? Math.round((count / total) * 100) : 0;
+      return `
+        <article class="doc-category-stat">
+          <span>${escapeHtml(category)}</span>
+          <strong>${count}</strong>
+          <small>${rate}%</small>
+        </article>
+      `;
+    }).join("");
+  }
+
+  function normalizedDocCategory(doc) {
+    return DOC_CATEGORIES.includes(doc?.category) ? doc.category : "其他";
   }
 
   async function captureVideoCover(file) {
