@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260608-goals-knowledge-weekly" />
+    <link rel="stylesheet" href="styles.css?v=20260608-doc-edit" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -442,7 +442,7 @@
         <div class="modal-head">
           <div>
             <p class="eyebrow">深度记录</p>
-            <h2>新建深度记录</h2>
+            <h2 id="docDialogTitle">新建深度记录</h2>
           </div>
           <button class="icon-btn" type="button" id="closeDocDialog" title="关闭">×</button>
         </div>
@@ -459,13 +459,13 @@
         <label>备注<textarea id="docBody" rows="4" placeholder="可以补充这份文档的用途、结论或后续动作"></textarea></label>
         <div class="form-actions">
           <button class="ghost-btn" type="button" id="cancelDoc">取消</button>
-          <button class="primary-btn" type="submit">保存文档</button>
+          <button class="primary-btn" type="submit" id="docSubmitBtn">保存文档</button>
         </div>
       </form>
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260608-goals-knowledge-weekly"></script>
-    <script src="app.js?v=20260608-goals-knowledge-weekly"></script>
+    <script src="supabase-config.js?v=20260608-doc-edit"></script>
+    <script src="app.js?v=20260608-doc-edit"></script>
   </body>
 </html>

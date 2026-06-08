@@ -32,6 +32,7 @@
     editingTodoId: null,
     editingMaterialId: null,
     editingGoalId: null,
+    editingDocId: null,
     supabase: null,
     user: null,
     cloudReady: false,
@@ -1451,35 +1452,76 @@
       clearPendingIdeaImages();
       renderIdeas();
     });
-    $("#openDocModal").addEventListener("click", () => $("#docDialog").showModal());
-    $("#cancelDoc").addEventListener("click", () => $("#docDialog").close());
-    $("#closeDocDialog").addEventListener("click", () => $("#docDialog").close());
+    $("#openDocModal").addEventListener("click", () => {
+      resetDocForm();
+      $("#docDialog").showModal();
+    });
+    $("#cancelDoc").addEventListener("click", closeDocDialog);
+    $("#closeDocDialog").addEventListener("click", closeDocDialog);
+    $("#docDialog").addEventListener("close", resetDocForm);
     $("#docForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const body = $("#docBody").value.trim();
       const link = $("#docLink").value.trim();
-      if (!link) {
+      const title = $("#docTitle").value.trim();
+      const editing = state.docs.find((doc) => doc.id === state.editingDocId);
+      if (!link && !editing?.attachmentKey) {
         $("#docLink").setCustomValidity("请填写文档 URL");
         $("#docLink").reportValidity();
         return;
       }
       $("#docLink").setCustomValidity("");
-      const id = crypto.randomUUID();
-      state.docs.unshift({
-        id,
+      const doc = {
+        id: editing?.id || crypto.randomUUID(),
         category: $("#docCategory").value || "其他",
-        title: $("#docTitle").value.trim(),
+        title,
         body,
         link,
-        attachmentKey: "",
-        attachmentName: "",
-        createdAt: Date.now()
-      });
+        attachmentKey: editing?.attachmentKey || "",
+        attachmentName: editing?.attachmentName || "",
+        createdAt: editing?.createdAt || Date.now(),
+        updatedAt: Date.now()
+      };
+      if (editing) {
+        state.docs = state.docs.map((entry) => entry.id === editing.id ? doc : entry);
+      } else {
+        state.docs.unshift(doc);
+      }
       save("pm.docs", state.docs);
-      $("#docForm").reset();
-      $("#docDialog").close();
+      closeDocDialog();
       renderDocs();
     });
+  }
+
+  function openDocEditor(id) {
+    const doc = state.docs.find((entry) => entry.id === id);
+    if (!doc) return;
+    state.editingDocId = doc.id;
+    $("#docDialogTitle").textContent = "编辑深度记录";
+    $("#docSubmitBtn").textContent = "保存修改";
+    $("#docCategory").value = normalizedDocCategory(doc);
+    $("#docTitle").value = doc.title || "";
+    $("#docLink").value = doc.link || "";
+    $("#docLink").required = !doc.attachmentKey;
+    $("#docLink").setCustomValidity("");
+    $("#docBody").value = doc.body || "";
+    $("#docDialog").showModal();
+    $("#docTitle").focus();
+  }
+
+  function resetDocForm() {
+    state.editingDocId = null;
+    $("#docForm").reset();
+    $("#docCategory").value = DOC_CATEGORIES[0];
+    $("#docLink").required = true;
+    $("#docLink").setCustomValidity("");
+    $("#docDialogTitle").textContent = "新建深度记录";
+    $("#docSubmitBtn").textContent = "保存文档";
+  }
+
+  function closeDocDialog() {
+    resetDocForm();
+    if ($("#docDialog").open) $("#docDialog").close();
   }
 
   function handleIdeaPaste(event) {
@@ -2634,6 +2676,7 @@
               <div class="card-actions">
                 ${doc.link ? `<a class="link-btn doc-link" href="${escapeAttr(doc.link)}" target="_blank" rel="noreferrer">打开链接</a>` : ""}
                 ${doc.attachmentKey ? `<button class="link-btn" data-action="download">查看旧附件：${escapeHtml(doc.attachmentName)}</button>` : ""}
+                <button class="link-btn" data-action="edit">编辑</button>
                 <button class="link-btn" data-action="delete">删除</button>
               </div>
             </article>
@@ -2645,10 +2688,15 @@
       button.addEventListener("click", async () => {
         const id = button.closest(".doc-item").dataset.id;
         const doc = state.docs.find((entry) => entry.id === id);
+        if (button.dataset.action === "edit") {
+          openDocEditor(id);
+          return;
+        }
         if (button.dataset.action === "download" && doc) {
           const file = await getFile(doc.attachmentKey);
           if (!file) return;
           window.open(URL.createObjectURL(file), "_blank");
+          return;
         }
         if (button.dataset.action === "delete") {
           if (doc?.attachmentKey) await deleteFile(doc.attachmentKey);
