@@ -1226,7 +1226,8 @@
         const progress = {
           passed: $("#progressPassed").checked,
           pushed: $("#progressPushed").checked,
-          feedback: $("#progressFeedback").checked,
+          flat: $("#progressFlat").checked,
+          video: $("#progressVideo").checked,
           recovered: $("#progressRecovered").checked,
           reviewSheet: $("#progressReviewSheet").checked
         };
@@ -2134,7 +2135,8 @@
       ["reviewSheet", "审核表格"],
       ["passed", "通过"],
       ["pushed", "推进"],
-      ["feedback", "反馈"],
+      ["flat", "平面"],
+      ["video", "视频"],
       ["recovered", "回收"]
     ], state.materialFilters.progress);
     fillSelect("#filterTagOne", [["", "全部第一标签"], ...uniqueValues(state.materials.map((item) => normalizedTags(item)[0])).map((value) => [value, value])], state.materialFilters.tagOne);
@@ -2195,7 +2197,8 @@
         "审核表格": progress.reviewSheet ? "是" : "否",
         "通过": progress.passed ? "是" : "否",
         "推进": progress.pushed ? "是" : "否",
-        "反馈": progress.feedback ? "是" : "否",
+        "平面": progress.flat ? "是" : "否",
+        "视频": progress.video ? "是" : "否",
         "回收": progress.recovered ? "是" : "否",
         "数据评分": item.rating ? `${item.rating}星` : "未评分",
         "视频文件": item.videoKey ? (item.videoName || "已上传视频") : "无",
@@ -2308,7 +2311,8 @@
       ["reviewSheet", "审核表格"],
       ["passed", "通过"],
       ["pushed", "推进"],
-      ["feedback", "反馈"],
+      ["flat", "平面"],
+      ["video", "视频"],
       ["recovered", "回收"]
     ];
     const normalizedProgress = normalizeProgress(progress);
@@ -2328,7 +2332,8 @@
     const progress = normalizeProgress(item.progress);
     $("#progressPassed").checked = progress.passed;
     $("#progressPushed").checked = progress.pushed;
-    $("#progressFeedback").checked = progress.feedback;
+    $("#progressFlat").checked = progress.flat;
+    $("#progressVideo").checked = progress.video;
     $("#progressRecovered").checked = progress.recovered;
     $("#progressReviewSheet").checked = progress.reviewSheet;
     $("#vendorName").value = item.vendor || "";
@@ -2354,7 +2359,8 @@
     setScriptStatusRadio("");
     $("#progressPassed").checked = false;
     $("#progressPushed").checked = false;
-    $("#progressFeedback").checked = false;
+    $("#progressFlat").checked = false;
+    $("#progressVideo").checked = false;
     $("#progressRecovered").checked = false;
     $("#progressReviewSheet").checked = false;
   }
@@ -2400,7 +2406,7 @@
       : isScriptApproved(item.scriptStatus)
         ? ""
         : item.scriptStatus || "";
-    const sameProgress = ["reviewSheet", "passed", "pushed", "feedback", "recovered"].every((key) => Boolean(item.progress?.[key]) === progress[key]);
+    const sameProgress = ["reviewSheet", "passed", "pushed", "flat", "video", "recovered"].every((key) => Boolean(item.progress?.[key]) === progress[key]);
     if (sameProgress && (item.scriptStatus || "") === scriptStatus) return item;
     return { ...item, progress, scriptStatus, updatedAt: Date.now() };
   }
@@ -2410,7 +2416,8 @@
       reviewSheet: progress.reviewSheet === true,
       passed: progress.passed === true,
       pushed: progress.pushed === true,
-      feedback: progress.feedback === true,
+      flat: progress.flat === true || progress.feedback === true,
+      video: progress.video === true,
       recovered: progress.recovered === true
     };
   }
