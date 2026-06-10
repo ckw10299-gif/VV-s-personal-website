@@ -1494,12 +1494,36 @@ h3 { font-size: 17px; }
 }
 
 .week-overview-head {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(230px, 1fr) auto;
   align-items: center;
   gap: 18px;
   min-height: 92px;
-  padding: 20px 22px;
+  padding: 20px 22px 20px 58px;
+}
+
+.week-overview-head::before {
+  content: "›";
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  color: #5a2f05;
+  background: #ffd86b;
+  font-size: 24px;
+  font-weight: 950;
+  line-height: 1;
+  transform: translateY(-50%);
+  transition: transform .18s ease;
+}
+
+.week-overview[open] > .week-overview-head::before {
+  transform: translateY(-50%) rotate(90deg);
 }
 
 .week-title-block {
@@ -2827,7 +2851,7 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   .sidebar-cloud-panel .cloud-form { grid-template-columns: 1fr; }
   .filter-bar { grid-template-columns: 1fr; }
   .bulk-bar { top: 88px; right: 8px; width: calc(100vw - 16px); }
-  .week-overview-head { padding: 18px; }
+  .week-overview-head { padding: 18px 18px 18px 54px; }
   .week-title-block { grid-template-columns: 1fr; }
   .week-date-hint { grid-column: auto; }
   .project-slice-head,
