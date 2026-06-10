@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260610-auto-hotspots" />
+    <link rel="stylesheet" href="styles.css?v=20260610-cleanup" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -13,13 +13,12 @@
           <span class="brand-mark">VV</span>
           <div>
             <strong>躁侯退休（VV版）</strong>
-              <small>待办 · 素材 · 热点 · 知识</small>
+              <small>待办 · 素材 · 知识</small>
           </div>
         </div>
         <nav class="nav-tabs" aria-label="主模块">
           <button class="nav-tab active" data-view="todo">每日待办</button>
           <button class="nav-tab" data-view="materials">素材库</button>
-          <button class="nav-tab" data-view="hotspots">热点追踪</button>
           <button class="nav-tab" data-view="brain">知识沉淀</button>
         </nav>
         <section class="sidebar-cloud-panel" id="cloudPanel">
@@ -282,40 +281,6 @@
           <div class="empty-state" id="materialEmpty">还没有素材，先上传一条视频素材。</div>
         </section>
 
-        <section id="hotspotsView" class="view">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">周度热点</p>
-              <h2>平台热梗追踪</h2>
-            </div>
-            <div class="task-actions">
-              <label class="compact-select">查看周维度
-                <select id="hotspotWeekFilter"></select>
-              </label>
-              <button class="primary-btn" id="openHotspotModal" type="button">新增热点</button>
-            </div>
-          </div>
-          <section class="hotspot-brief">
-            <article class="hotspot-brief-card">
-              <span>更新节奏</span>
-              <strong>每周一</strong>
-              <small id="hotspotAutoStatus">自动读取周报数据</small>
-            </article>
-            <article class="hotspot-brief-card warm">
-              <span>本周查看</span>
-              <strong id="hotspotFocusWeek">上一周</strong>
-              <small id="hotspotFocusHint">默认展示最近完整一周</small>
-            </article>
-            <article class="hotspot-brief-card cool">
-              <span>内容沉淀</span>
-              <strong id="hotspotFocusCount">0</strong>
-              <small>热梗 + TOP 素材条目</small>
-            </article>
-          </section>
-          <div class="hotspot-grid" id="hotspotGrid"></div>
-          <div class="empty-state" id="hotspotEmpty">还没有热点记录，先新增一条上一周的热梗或 TOP 素材。</div>
-        </section>
-
         <section id="brainView" class="view">
           <div class="brain-layout">
             <section class="panel">
@@ -457,45 +422,6 @@
       </form>
     </dialog>
 
-    <dialog id="hotspotDialog" class="modal">
-      <form method="dialog" class="modal-box" id="hotspotForm">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">热点追踪</p>
-            <h2 id="hotspotDialogTitle">新增热点</h2>
-          </div>
-          <button class="icon-btn" type="button" id="closeHotspotDialog" title="关闭">×</button>
-        </div>
-        <div class="two-cols">
-          <label>周维度<input id="hotspotWeek" required placeholder="例如 6.1-6.7" /></label>
-          <label>平台
-            <select id="hotspotPlatform">
-              <option value="抖音">抖音</option>
-              <option value="小红书">小红书</option>
-            </select>
-          </label>
-        </div>
-        <div class="two-cols">
-          <label>内容类型
-            <select id="hotspotType">
-              <option value="热梗">热梗</option>
-              <option value="TOP素材">TOP素材</option>
-            </select>
-          </label>
-          <label>热梗 / 素材标题<input id="hotspotTitle" required maxlength="120" /></label>
-        </div>
-        <label>热梗起源 / 原始视频标题<input id="hotspotOriginTitle" maxlength="160" /></label>
-        <label>起源或素材链接<input id="hotspotOriginUrl" type="url" placeholder="https://..." /></label>
-        <label>热梗模仿 / 后续案例<textarea id="hotspotImitation" rows="3" placeholder="记录后续有哪些视频、账号或内容形式在模仿"></textarea></label>
-        <label>模仿案例链接<input id="hotspotImitationUrl" type="url" placeholder="https://..." /></label>
-        <label>数据与观察<textarea id="hotspotNote" rows="3" placeholder="例如播放量、点赞量、爆点、适合借鉴的结构"></textarea></label>
-        <div class="form-actions">
-          <button class="ghost-btn" type="button" id="cancelHotspot">取消</button>
-          <button class="primary-btn" type="submit" id="hotspotSubmitBtn">保存热点</button>
-        </div>
-      </form>
-    </dialog>
-
     <dialog id="videoDialog" class="modal media-modal">
       <div class="modal-box">
         <div class="modal-head">
@@ -544,7 +470,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260610-auto-hotspots"></script>
-    <script src="app.js?v=20260610-auto-hotspots"></script>
+    <script src="supabase-config.js?v=20260610-cleanup"></script>
+    <script src="app.js?v=20260610-cleanup"></script>
   </body>
 </html>

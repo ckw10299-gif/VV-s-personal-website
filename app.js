@@ -33,7 +33,6 @@
     editingMaterialId: null,
     editingGoalId: null,
     editingDocId: null,
-    editingHotspotId: null,
     supabase: null,
     user: null,
     cloudReady: false,
@@ -51,13 +50,9 @@
     statsWeek: getWeekRangeLabel(toISODate(new Date())),
     reviewDimension: "project",
     reviewWeek: "",
-    hotspotWeek: getPreviousWeekLabel(),
-    autoHotspots: [],
-    autoHotspotMeta: null,
     goals: loadPrivateArray("pm.goals"),
     todos: loadPrivateArray("pm.todos"),
     materials: loadPrivateArray("pm.materials"),
-    hotspots: loadPrivateArray("pm.hotspots"),
     ideas: loadPrivateArray("pm.ideas"),
     docs: loadPrivateArray("pm.docs"),
     memory: normalizeMemory(isLocalDataLocked() ? {} : load("pm.materialMemory", {
@@ -95,13 +90,11 @@
     bindTodo();
     bindGoals();
     bindMaterials();
-    bindHotspots();
     bindBrain();
     bindMemoryInputs();
     seedMaterialMemory();
     seedOnboardingGoals();
     renderAll();
-    loadAutoHotspots();
     updateCloudUI("已加载本地缓存，正在恢复登录状态。");
     restoreCloudSession();
   }
@@ -324,7 +317,7 @@
   }
 
   function clearPrivateLocalCache(options = {}) {
-    ["pm.todos", "pm.goals", "pm.materials", "pm.hotspots", "pm.ideas", "pm.docs", "pm.materialMemory"].forEach((key) => {
+    ["pm.todos", "pm.goals", "pm.materials", "pm.ideas", "pm.docs", "pm.materialMemory"].forEach((key) => {
       localStorage.removeItem(key);
     });
     if (options.clearPending) {
@@ -336,7 +329,6 @@
     state.goals = [];
     state.todos = [];
     state.materials = [];
-    state.hotspots = [];
     state.ideas = [];
     state.docs = [];
     state.memory = normalizeMemory({});
@@ -510,7 +502,6 @@
       state.todos = localSnapshot.todos;
       state.goals = localSnapshot.goals;
       state.materials = localSnapshot.materials;
-      state.hotspots = localSnapshot.hotspots;
       state.ideas = localSnapshot.ideas;
       state.docs = localSnapshot.docs;
       state.memory = localSnapshot.memory;
@@ -525,7 +516,6 @@
       state.todos = localSnapshot.todos;
       state.goals = localSnapshot.goals;
       state.materials = localSnapshot.materials;
-      state.hotspots = localSnapshot.hotspots;
       state.ideas = localSnapshot.ideas;
       state.docs = localSnapshot.docs;
       state.memory = localSnapshot.memory;
@@ -538,7 +528,6 @@
       todos: [],
       goals: [],
       materials: [],
-      hotspots: [],
       ideas: [],
       docs: [],
       memory: null
@@ -555,7 +544,6 @@
       state.todos = localSnapshot.todos;
       state.goals = localSnapshot.goals;
       state.materials = localSnapshot.materials;
-      state.hotspots = localSnapshot.hotspots;
       state.ideas = localSnapshot.ideas;
       state.docs = localSnapshot.docs;
       state.memory = localSnapshot.memory;
@@ -567,7 +555,6 @@
     state.todos = hasKind("todos") ? mergeCloudAndLocalItems(localSnapshot.todos, grouped.todos) : localSnapshot.todos;
     state.goals = hasKind("goals") ? mergeCloudAndLocalItems(localSnapshot.goals, grouped.goals) : localSnapshot.goals;
     state.materials = hasKind("materials") ? mergeCloudAndLocalItems(localSnapshot.materials, grouped.materials) : localSnapshot.materials;
-    state.hotspots = hasKind("hotspots") ? mergeCloudAndLocalItems(localSnapshot.hotspots, grouped.hotspots) : localSnapshot.hotspots;
     state.ideas = hasKind("ideas") ? mergeCloudAndLocalItems(localSnapshot.ideas, grouped.ideas) : localSnapshot.ideas;
     state.docs = hasKind("docs") ? mergeCloudAndLocalItems(localSnapshot.docs, grouped.docs) : localSnapshot.docs;
     state.memory = hasKind("memory") ? mergeMemory(localSnapshot.memory, grouped.memory) : localSnapshot.memory;
@@ -623,7 +610,6 @@
       todos: loadArray("pm.todos"),
       goals: loadArray("pm.goals"),
       materials: loadArray("pm.materials"),
-      hotspots: loadArray("pm.hotspots"),
       ideas: loadArray("pm.ideas"),
       docs: loadArray("pm.docs"),
       memory: normalizeMemory(load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }))
@@ -637,7 +623,6 @@
       todos: loadArray("pm.todos"),
       goals: loadArray("pm.goals"),
       materials: loadArray("pm.materials"),
-      hotspots: loadArray("pm.hotspots"),
       ideas: loadArray("pm.ideas"),
       docs: loadArray("pm.docs"),
       memory: normalizeMemory(load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] }))
@@ -651,7 +636,6 @@
       todos: Array.isArray(backup.data.todos) ? backup.data.todos : [],
       goals: Array.isArray(backup.data.goals) ? backup.data.goals : [],
       materials: Array.isArray(backup.data.materials) ? backup.data.materials : [],
-      hotspots: Array.isArray(backup.data.hotspots) ? backup.data.hotspots : [],
       ideas: Array.isArray(backup.data.ideas) ? backup.data.ideas : [],
       docs: Array.isArray(backup.data.docs) ? backup.data.docs : [],
       memory: normalizeMemory(backup.data.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
@@ -663,7 +647,6 @@
     return snapshot.todos.length
       || snapshot.goals.length
       || snapshot.materials.length
-      || snapshot.hotspots.length
       || snapshot.ideas.length
       || snapshot.docs.length
       || memory.projects.length
@@ -741,7 +724,6 @@
     await persistCloudNow("pm.todos", snapshot.todos);
     await persistCloudNow("pm.goals", snapshot.goals);
     await persistCloudNow("pm.materials", snapshot.materials);
-    await persistCloudNow("pm.hotspots", snapshot.hotspots);
     await persistCloudNow("pm.ideas", snapshot.ideas);
     await persistCloudNow("pm.docs", snapshot.docs);
     await persistCloudNow("pm.materialMemory", snapshot.memory);
@@ -782,7 +764,6 @@
       "pm.todos": loadArray("pm.todos"),
       "pm.goals": loadArray("pm.goals"),
       "pm.materials": loadArray("pm.materials"),
-      "pm.hotspots": loadArray("pm.hotspots"),
       "pm.ideas": loadArray("pm.ideas"),
       "pm.docs": loadArray("pm.docs"),
       "pm.materialMemory": load("pm.materialMemory", { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
@@ -856,7 +837,6 @@
       "pm.todos": "todos",
       "pm.goals": "goals",
       "pm.materials": "materials",
-      "pm.hotspots": "hotspots",
       "pm.ideas": "ideas",
       "pm.docs": "docs",
       "pm.materialMemory": "memory"
@@ -891,14 +871,12 @@
     state.todos = localData.todos;
     state.goals = localData.goals;
     state.materials = localData.materials;
-    state.hotspots = localData.hotspots;
     state.ideas = localData.ideas;
     state.docs = localData.docs;
     state.memory = normalizeMemory(localData.memory);
     save("pm.todos", state.todos);
     save("pm.goals", state.goals);
     save("pm.materials", state.materials);
-    save("pm.hotspots", state.hotspots);
     save("pm.ideas", state.ideas);
     save("pm.docs", state.docs);
     save("pm.materialMemory", state.memory);
@@ -964,7 +942,6 @@
         todos: Array.isArray(backup.todos) ? backup.todos : [],
         goals: Array.isArray(backup.goals) ? backup.goals : [],
         materials: Array.isArray(backup.materials) ? backup.materials : [],
-        hotspots: Array.isArray(backup.hotspots) ? backup.hotspots : [],
         ideas: Array.isArray(backup.ideas) ? backup.ideas : [],
         docs: Array.isArray(backup.docs) ? backup.docs : [],
         memory: normalizeMemory(backup.memory || { projects: [], vendors: [], tagOne: [], tagTwo: [], tagThree: [] })
@@ -972,7 +949,6 @@
       state.todos = snapshot.todos;
       state.goals = snapshot.goals;
       state.materials = snapshot.materials;
-      state.hotspots = snapshot.hotspots;
       state.ideas = snapshot.ideas;
       state.docs = snapshot.docs;
       state.memory = normalizeMemory(snapshot.memory);
@@ -1017,7 +993,6 @@
     localStorage.setItem("pm.todos", JSON.stringify(state.todos));
     localStorage.setItem("pm.goals", JSON.stringify(state.goals));
     localStorage.setItem("pm.materials", JSON.stringify(state.materials));
-    localStorage.setItem("pm.hotspots", JSON.stringify(state.hotspots));
     localStorage.setItem("pm.ideas", JSON.stringify(state.ideas));
     localStorage.setItem("pm.docs", JSON.stringify(state.docs));
     localStorage.setItem("pm.materialMemory", JSON.stringify(state.memory));
@@ -1025,7 +1000,6 @@
       todos: state.todos,
       goals: state.goals,
       materials: state.materials,
-      hotspots: state.hotspots,
       ideas: state.ideas,
       docs: state.docs,
       memory: state.memory
@@ -1358,125 +1332,6 @@
     updateBulkControl();
   }
 
-  function bindHotspots() {
-    $("#openHotspotModal").addEventListener("click", () => {
-      resetHotspotForm();
-      $("#hotspotWeek").value = state.hotspotWeek || getPreviousWeekLabel();
-      $("#hotspotDialog").showModal();
-    });
-    $("#closeHotspotDialog").addEventListener("click", closeHotspotDialog);
-    $("#cancelHotspot").addEventListener("click", closeHotspotDialog);
-    $("#hotspotWeekFilter").addEventListener("change", (event) => {
-      state.hotspotWeek = event.target.value;
-      renderHotspots();
-    });
-    $("#hotspotForm").addEventListener("submit", (event) => {
-      event.preventDefault();
-      const editing = state.hotspots.find((item) => item.id === state.editingHotspotId);
-      const payload = {
-        id: editing?.id || crypto.randomUUID(),
-        week: $("#hotspotWeek").value.trim(),
-        platform: $("#hotspotPlatform").value,
-        type: $("#hotspotType").value,
-        title: $("#hotspotTitle").value.trim(),
-        originTitle: $("#hotspotOriginTitle").value.trim(),
-        originUrl: $("#hotspotOriginUrl").value.trim(),
-        imitation: $("#hotspotImitation").value.trim(),
-        imitationUrl: $("#hotspotImitationUrl").value.trim(),
-        note: $("#hotspotNote").value.trim(),
-        createdAt: editing?.createdAt || Date.now(),
-        updatedAt: Date.now()
-      };
-      state.hotspots = editing
-        ? state.hotspots.map((item) => item.id === payload.id ? payload : item)
-        : [payload, ...state.hotspots];
-      state.hotspotWeek = payload.week;
-      save("pm.hotspots", state.hotspots);
-      closeHotspotDialog();
-      renderHotspots();
-    });
-  }
-
-  async function loadAutoHotspots() {
-    const status = $("#hotspotAutoStatus");
-    if (status) status.textContent = "正在读取自动周报...";
-    try {
-      const response = await fetch(`assets/hotspots/weekly.json?v=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      state.autoHotspotMeta = data.meta || null;
-      state.autoHotspots = normalizeAutoHotspots(data.items || []);
-      if (status) {
-        const time = state.autoHotspotMeta?.generatedAt ? formatDateTime(state.autoHotspotMeta.generatedAt) : "暂无时间";
-        status.textContent = `自动周报已更新：${time}`;
-      }
-      renderHotspots();
-    } catch (error) {
-      state.autoHotspots = [];
-      state.autoHotspotMeta = null;
-      if (status) status.textContent = "自动周报暂未读取成功，可继续手动记录。";
-      console.warn("Auto hotspots unavailable:", error.message);
-    }
-  }
-
-  function normalizeAutoHotspots(items) {
-    return items
-      .filter((item) => item?.title)
-      .map((item, index) => ({
-        id: item.id || `auto-${item.week || getPreviousWeekLabel()}-${item.platform || "平台"}-${index}`,
-        week: item.week || getPreviousWeekLabel(),
-        platform: item.platform === "小红书" ? "小红书" : "抖音",
-        type: item.type === "TOP素材" ? "TOP素材" : "热梗",
-        title: item.title || "",
-        originTitle: item.originTitle || "",
-        originUrl: item.originUrl || "",
-        imitation: item.imitation || "",
-        imitationUrl: item.imitationUrl || "",
-        note: item.note || "",
-        source: "auto",
-        createdAt: Number(item.createdAt || 0),
-        updatedAt: Number(item.updatedAt || 0)
-      }));
-  }
-
-  function resetHotspotForm() {
-    state.editingHotspotId = null;
-    $("#hotspotDialogTitle").textContent = "新增热点";
-    $("#hotspotSubmitBtn").textContent = "保存热点";
-    $("#hotspotWeek").value = state.hotspotWeek || getPreviousWeekLabel();
-    $("#hotspotPlatform").value = "抖音";
-    $("#hotspotType").value = "热梗";
-    $("#hotspotTitle").value = "";
-    $("#hotspotOriginTitle").value = "";
-    $("#hotspotOriginUrl").value = "";
-    $("#hotspotImitation").value = "";
-    $("#hotspotImitationUrl").value = "";
-    $("#hotspotNote").value = "";
-  }
-
-  function closeHotspotDialog() {
-    resetHotspotForm();
-    $("#hotspotDialog").close();
-  }
-
-  function openHotspotEditor(id) {
-    const item = state.hotspots.find((entry) => entry.id === id);
-    if (!item) return;
-    state.editingHotspotId = id;
-    $("#hotspotDialogTitle").textContent = "编辑热点";
-    $("#hotspotSubmitBtn").textContent = "更新热点";
-    $("#hotspotWeek").value = item.week || getPreviousWeekLabel();
-    $("#hotspotPlatform").value = item.platform || "抖音";
-    $("#hotspotType").value = item.type || "热梗";
-    $("#hotspotTitle").value = item.title || "";
-    $("#hotspotOriginTitle").value = item.originTitle || "";
-    $("#hotspotOriginUrl").value = item.originUrl || "";
-    $("#hotspotImitation").value = item.imitation || "";
-    $("#hotspotImitationUrl").value = item.imitationUrl || "";
-    $("#hotspotNote").value = item.note || "";
-    $("#hotspotDialog").showModal();
-  }
-
   function bindMemoryInputs() {
     const fields = ["projectName", "vendorName", "tagOne", "tagTwo", "tagThree"];
     fields.forEach((id) => {
@@ -1748,7 +1603,6 @@
     renderCalendar();
     renderTodayTasks();
     renderMaterials();
-    renderHotspots();
     renderIdeas();
     renderDocs();
   }
@@ -2547,12 +2401,6 @@
     return `${start.getMonth() + 1}.${start.getDate()}-${end.getMonth() + 1}.${end.getDate()}`;
   }
 
-  function getPreviousWeekLabel() {
-    const date = new Date();
-    date.setDate(date.getDate() - 7);
-    return getWeekRangeLabel(toISODate(date));
-  }
-
   async function playMaterial(id) {
     const item = state.materials.find((entry) => entry.id === id);
     if (!item || !item.videoKey) return;
@@ -3023,168 +2871,6 @@
     if (player.src) URL.revokeObjectURL(player.src);
     player.removeAttribute("src");
     if ($("#videoDialog").open) $("#videoDialog").close();
-  }
-
-  function renderHotspots() {
-    const allHotspots = mergedHotspots();
-    const options = sortHotspotWeeks(uniqueValues([getPreviousWeekLabel(), ...allHotspots.map((item) => item.week)]));
-    if (!state.hotspotWeek || !options.includes(state.hotspotWeek)) {
-      state.hotspotWeek = options[0] || getPreviousWeekLabel();
-    }
-    fillSelect("#hotspotWeekFilter", options.map((week) => [week, week]), state.hotspotWeek);
-
-    const filtered = allHotspots.filter((item) => (item.week || getPreviousWeekLabel()) === state.hotspotWeek);
-    $("#hotspotFocusWeek").textContent = state.hotspotWeek || getPreviousWeekLabel();
-    $("#hotspotFocusHint").textContent = `${platformCount(filtered, "抖音")} 条抖音 · ${platformCount(filtered, "小红书")} 条小红书`;
-    $("#hotspotFocusCount").textContent = filtered.length;
-    $("#hotspotEmpty").style.display = filtered.length ? "none" : "block";
-
-    const groups = groupHotspotsByWeek(filtered);
-    $("#hotspotGrid").innerHTML = groups.map(([week, items]) => {
-      const memeCount = items.filter((item) => item.type === "热梗").length;
-      const topCount = items.filter((item) => item.type === "TOP素材").length;
-      return `
-        <details class="hotspot-week-card">
-          <summary class="hotspot-week-head">
-            <div>
-              <span class="level-badge week-badge">周维度</span>
-              <h3>${escapeHtml(week)}</h3>
-            </div>
-            <div class="hotspot-week-metrics">
-              <span class="week-chip total">总 ${items.length}</span>
-              <span class="week-chip approved">热梗 ${memeCount}</span>
-              <span class="week-chip rate">TOP ${topCount}</span>
-              <span class="week-chip done">抖音 ${platformCount(items, "抖音")}</span>
-              <span class="week-chip rejected">小红书 ${platformCount(items, "小红书")}</span>
-            </div>
-          </summary>
-          <div class="hotspot-platform-grid">
-            ${["抖音", "小红书"].map((platform) => renderHotspotPlatform(platform, items.filter((item) => item.platform === platform))).join("")}
-          </div>
-        </details>
-      `;
-    }).join("");
-
-    $("#hotspotGrid").querySelectorAll("[data-action='edit']").forEach((button) => {
-      button.addEventListener("click", () => openHotspotEditor(button.closest(".hotspot-item").dataset.id));
-    });
-    $("#hotspotGrid").querySelectorAll("[data-action='delete']").forEach((button) => {
-      button.addEventListener("click", () => {
-        const id = button.closest(".hotspot-item").dataset.id;
-        if (!confirm("确认删除这条热点记录吗？")) return;
-        state.hotspots = state.hotspots.filter((item) => item.id !== id);
-        save("pm.hotspots", state.hotspots);
-        renderHotspots();
-      });
-    });
-  }
-
-  function renderHotspotPlatform(platform, items) {
-    const memes = items.filter((item) => item.type === "热梗");
-    const topItems = items.filter((item) => item.type === "TOP素材");
-    return `
-      <section class="hotspot-platform ${platform === "抖音" ? "douyin" : "xhs"}">
-        <div class="hotspot-platform-head">
-          <h4>${escapeHtml(platform)}</h4>
-          <span>${items.length} 条</span>
-        </div>
-        ${renderHotspotSection("近期最大热梗", memes)}
-        ${renderHotspotSection("近期 TOP 素材", topItems)}
-      </section>
-    `;
-  }
-
-  function renderHotspotSection(title, items) {
-    return `
-      <div class="hotspot-section">
-        <h5>${escapeHtml(title)}</h5>
-        ${items.length ? items.map(renderHotspotItem).join("") : `<div class="inline-empty">这一栏还没有记录。</div>`}
-      </div>
-    `;
-  }
-
-  function renderHotspotItem(item) {
-    const isAuto = item.source === "auto";
-    return `
-      <article class="hotspot-item ${item.type === "TOP素材" ? "top" : "meme"} ${isAuto ? "auto" : ""}" data-id="${item.id}">
-        <div class="hotspot-item-title">
-          <span>${escapeHtml(item.type || "热梗")}</span>
-          <strong>${escapeHtml(item.title || "未命名热点")}</strong>
-          ${isAuto ? `<em>自动</em>` : ""}
-        </div>
-        ${item.originTitle || item.originUrl ? `
-          <div class="hotspot-info">
-            <span>起源</span>
-            <p>${escapeHtml(item.originTitle || "原始视频")}${item.originUrl ? ` · <a href="${escapeAttr(item.originUrl)}" target="_blank" rel="noreferrer">打开链接</a>` : ""}</p>
-          </div>
-        ` : ""}
-        ${item.imitation || item.imitationUrl ? `
-          <div class="hotspot-info">
-            <span>模仿</span>
-            <p>${escapeHtml(item.imitation || "后续模仿案例")}${item.imitationUrl ? ` · <a href="${escapeAttr(item.imitationUrl)}" target="_blank" rel="noreferrer">打开链接</a>` : ""}</p>
-          </div>
-        ` : ""}
-        ${item.note ? `
-          <div class="hotspot-info hotspot-note">
-            <span>观察</span>
-            <p>${escapeHtml(item.note)}</p>
-          </div>
-        ` : ""}
-        ${isAuto ? `<div class="hotspot-auto-tip">来自每周一自动周报，不会覆盖你的手动记录。</div>` : `<div class="card-actions">
-          <button class="link-btn" data-action="edit" type="button">编辑</button>
-          <button class="link-btn danger" data-action="delete" type="button">删除</button>
-        </div>`}
-      </article>
-    `;
-  }
-
-  function mergedHotspots() {
-    const map = new Map();
-    [...state.autoHotspots, ...state.hotspots].forEach((item) => {
-      const key = [
-        item.source === "auto" ? item.id : "manual",
-        item.week || "",
-        item.platform || "",
-        item.type || "",
-        item.title || ""
-      ].join("|");
-      map.set(key, item);
-    });
-    return [...map.values()];
-  }
-
-  function groupHotspotsByWeek(items) {
-    const groups = new Map();
-    items.forEach((item) => {
-      const week = item.week || getPreviousWeekLabel();
-      if (!groups.has(week)) groups.set(week, []);
-      groups.get(week).push(item);
-    });
-    return [...groups.entries()]
-      .sort(([a], [b]) => weekLabelSortTime(b) - weekLabelSortTime(a))
-      .map(([week, weekItems]) => [
-        week,
-        [...weekItems].sort((a, b) => itemTimestamp(b) - itemTimestamp(a))
-      ]);
-  }
-
-  function platformCount(items, platform) {
-    return items.filter((item) => item.platform === platform).length;
-  }
-
-  function sortHotspotWeeks(weeks) {
-    return [...weeks].sort((a, b) => weekLabelSortTime(b) - weekLabelSortTime(a) || b.localeCompare(a, "zh-CN"));
-  }
-
-  function weekLabelSortTime(label) {
-    const match = String(label || "").match(/(\d{1,2})\.(\d{1,2})/);
-    if (!match) return 0;
-    const now = new Date();
-    let year = now.getFullYear();
-    const month = Number(match[1]);
-    const day = Number(match[2]);
-    if (month > now.getMonth() + 2) year -= 1;
-    return new Date(year, month - 1, day).getTime();
   }
 
   function renderIdeas() {
