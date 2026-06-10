@@ -1844,6 +1844,12 @@ details:not([open]) > .material-group-head h3::before {
   font-size: 13px;
 }
 
+.inline-link {
+  color: #1d4ed8;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
 .script-link {
   display: inline-block;
   margin-top: 8px;

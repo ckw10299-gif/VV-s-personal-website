@@ -1197,7 +1197,7 @@
         alert("当前还没有素材可以同步。");
         return;
       }
-      syncMaterialsToFeishu(state.materials.map((item) => item.id), { manual: true });
+      syncMaterialsToFeishu(state.materials.map((item) => item.id), { manual: true, batch: true });
     });
     $("#progressPassed").addEventListener("change", (event) => {
       if (event.target.checked) setScriptStatusRadio("通过");
@@ -1243,9 +1243,11 @@
         const payload = {
           id,
           title: $("#materialTitle").value.trim(),
+          finalName: $("#materialFinalName").value.trim(),
           project: $("#projectName").value.trim(),
           scriptType: formData.get("scriptType") || "AE脚本",
           scriptLink: $("#scriptLink").value.trim(),
+          storageUrl: $("#materialStorageUrl").value.trim(),
           scriptStatus,
           progress,
           vendor: $("#vendorName").value.trim(),
@@ -1941,6 +1943,8 @@
                 <div class="material-meta-line">脚本类型：${escapeHtml(normalizedScriptType(item))}</div>
                 <div class="material-meta-line">所属项目：${escapeHtml(item.project || "未归属项目")}</div>
                 <div class="material-meta-line">供应商：${escapeHtml(item.vendor || "未填写")}</div>
+                ${item.finalName ? `<div class="material-meta-line">最终命名：${escapeHtml(item.finalName)}</div>` : ""}
+                ${item.storageUrl ? `<div class="material-meta-line">素材存放：${renderStorageAddress(item.storageUrl)}</div>` : ""}
                 <div class="script-status ${scriptStatusClass(item.scriptStatus)}">
                   脚本状态：${escapeHtml(item.scriptStatus || "未填写")}
                 </div>
@@ -2200,6 +2204,8 @@
         "周时间": getMaterialWeekLabel(item),
         "素材归属日期": getMaterialBelongDate(item),
         "素材标题": item.title || "",
+        "最终命名": item.finalName || "",
+        "素材存放地址": item.storageUrl || "",
         "脚本类型": normalizedScriptType(item),
         "脚本状态": item.scriptStatus || "",
         "脚本链接": item.scriptLink || "",
@@ -2332,12 +2338,23 @@
     return `<div class="feishu-sync-status ${escapeAttr(status || "idle")}"${title}>${escapeHtml(text)}</div>`;
   }
 
+  function renderStorageAddress(value) {
+    const text = String(value || "").trim();
+    if (/^https?:\/\//i.test(text)) {
+      return `<a class="inline-link" href="${escapeAttr(text)}" target="_blank" rel="noreferrer">${escapeHtml(text)}</a>`;
+    }
+    return escapeHtml(text);
+  }
+
   async function syncMaterialsToFeishu(ids, options = {}) {
     const uniqueIds = [...new Set(ids)].filter(Boolean);
     if (!uniqueIds.length) return;
     if (!state.supabase || !state.user) {
       if (options.manual) alert("请先登录账号，登录后才能同步到飞书。");
       return;
+    }
+    if (options.batch && uniqueIds.length > 1) {
+      return syncMaterialBatchToFeishu(uniqueIds, options);
     }
     let success = 0;
     let failed = 0;
@@ -2349,6 +2366,7 @@
         const { data, error } = await state.supabase.functions.invoke("sync-feishu-material", {
           body: {
             action: "upsert",
+            localId: item.id,
             recordId: item.feishuRecordId || "",
             fields: buildFeishuMaterialFields(item)
           }
@@ -2378,6 +2396,61 @@
     }
   }
 
+  async function syncMaterialBatchToFeishu(ids, options = {}) {
+    const uniqueIds = [...new Set(ids)].filter(Boolean);
+    const items = uniqueIds
+      .map((id) => state.materials.find((entry) => entry.id === id))
+      .filter(Boolean);
+    if (!items.length) return;
+    setFeishuSyncState(items.map((item) => item.id), { feishuSyncStatus: "syncing", feishuSyncMessage: "" });
+    try {
+      const { data, error } = await state.supabase.functions.invoke("sync-feishu-material", {
+        body: {
+          action: "batchUpsert",
+          records: items.map((item) => ({
+            localId: item.id,
+            recordId: item.feishuRecordId || "",
+            fields: buildFeishuMaterialFields(item)
+          }))
+        }
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.message || "飞书批量同步失败");
+      const results = Array.isArray(data.results) ? data.results : [];
+      const resultMap = new Map(results.map((result) => [result.localId, result]));
+      state.materials = state.materials.map((item) => {
+        if (!uniqueIds.includes(item.id)) return item;
+        const result = resultMap.get(item.id);
+        if (result?.ok) {
+          return {
+            ...item,
+            feishuRecordId: result.recordId || item.feishuRecordId || "",
+            feishuSyncStatus: "synced",
+            feishuSyncMessage: "",
+            feishuSyncedAt: Date.now()
+          };
+        }
+        return {
+          ...item,
+          feishuSyncStatus: "failed",
+          feishuSyncMessage: result?.message || "飞书同步失败"
+        };
+      });
+      save("pm.materials", state.materials);
+      renderMaterials();
+      if (options.manual) {
+        alert(data.failed ? `飞书同步完成：成功 ${data.success || 0} 条，失败 ${data.failed} 条。失败原因可在素材卡片“飞书：同步失败”处悬停查看。` : `飞书同步完成：成功 ${data.success || items.length} 条。`);
+      }
+    } catch (error) {
+      setFeishuSyncState(items.map((item) => item.id), {
+        feishuSyncStatus: "failed",
+        feishuSyncMessage: error.message || "飞书批量同步失败"
+      });
+      if (options.manual) alert(error.message || "飞书批量同步失败");
+      console.warn(error);
+    }
+  }
+
   function setFeishuSyncState(ids, patch, options = {}) {
     state.materials = state.materials.map((item) => ids.includes(item.id) ? { ...item, ...patch } : item);
     save("pm.materials", state.materials);
@@ -2404,6 +2477,8 @@
       "素材归属日期": getMaterialBelongDate(item),
       "上传时间": item.date || "",
       "素材标题": item.title || "",
+      "最终命名": item.finalName || "",
+      "素材存放地址": item.storageUrl || "",
       "脚本类型": normalizedScriptType(item),
       "脚本状态": item.scriptStatus || "",
       "脚本链接": item.scriptLink || "",
@@ -2443,9 +2518,11 @@
     state.editingMaterialId = id;
     $("#materialDialog .modal-head h2").textContent = "编辑素材";
     $("#materialTitle").value = item.title || "";
+    $("#materialFinalName").value = item.finalName || "";
     $("#projectName").value = item.project || "";
     setScriptTypeRadio(normalizedScriptType(item));
     $("#scriptLink").value = item.scriptLink || "";
+    $("#materialStorageUrl").value = item.storageUrl || "";
     setScriptStatusRadio(item.scriptStatus || "");
     const progress = normalizeProgress(item.progress);
     $("#progressPassed").checked = progress.passed;

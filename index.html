@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260610-feishu-sync" />
+    <link rel="stylesheet" href="styles.css?v=20260610-feishu-fields" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -362,6 +362,7 @@
           <button class="icon-btn" type="button" id="closeMaterialDialog" title="关闭">×</button>
         </div>
         <label>素材标题<input id="materialTitle" required maxlength="80" autocomplete="off" /></label>
+        <label>最终命名<input id="materialFinalName" maxlength="120" autocomplete="off" /></label>
         <label class="memory-field">所属项目<input id="projectName" maxlength="80" autocomplete="off" /><div class="memory-menu" data-menu-for="projectName"></div></label>
         <fieldset class="type-field">
           <legend>脚本类型</legend>
@@ -372,6 +373,7 @@
           </div>
         </fieldset>
         <label>脚本链接<input id="scriptLink" type="url" placeholder="https://..." /></label>
+        <label>素材存放地址<input id="materialStorageUrl" maxlength="300" placeholder="可填写网盘/飞书/本地路径等" autocomplete="off" /></label>
         <fieldset class="type-field">
           <legend>脚本状态</legend>
           <div class="script-status-options">
@@ -468,7 +470,7 @@
     </dialog>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="supabase-config.js?v=20260610-feishu-sync"></script>
-    <script src="app.js?v=20260610-feishu-sync"></script>
+    <script src="supabase-config.js?v=20260610-feishu-fields"></script>
+    <script src="app.js?v=20260610-feishu-fields"></script>
   </body>
 </html>
