@@ -2432,6 +2432,34 @@ details:not([open]) > .material-group-head h3::before {
   font-weight: 950;
 }
 
+.hotspot-item-title em {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 999px;
+  color: #087152;
+  background: #dcfff2;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.hotspot-item.auto {
+  border-style: dashed;
+  background:
+    linear-gradient(135deg, rgba(255,253,246,.98), rgba(220,255,242,.58));
+}
+
+.hotspot-auto-tip {
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 999px;
+  color: #087152;
+  background: rgba(220,255,242,.82);
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .hotspot-item.top .hotspot-item-title span {
   color: #075985;
   background: #e0f2fe;

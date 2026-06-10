@@ -52,6 +52,8 @@
     reviewDimension: "project",
     reviewWeek: "",
     hotspotWeek: getPreviousWeekLabel(),
+    autoHotspots: [],
+    autoHotspotMeta: null,
     goals: loadPrivateArray("pm.goals"),
     todos: loadPrivateArray("pm.todos"),
     materials: loadPrivateArray("pm.materials"),
@@ -99,6 +101,7 @@
     seedMaterialMemory();
     seedOnboardingGoals();
     renderAll();
+    loadAutoHotspots();
     updateCloudUI("已加载本地缓存，正在恢复登录状态。");
     restoreCloudSession();
   }
@@ -1392,6 +1395,48 @@
       closeHotspotDialog();
       renderHotspots();
     });
+  }
+
+  async function loadAutoHotspots() {
+    const status = $("#hotspotAutoStatus");
+    if (status) status.textContent = "正在读取自动周报...";
+    try {
+      const response = await fetch(`assets/hotspots/weekly.json?v=${Date.now()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      state.autoHotspotMeta = data.meta || null;
+      state.autoHotspots = normalizeAutoHotspots(data.items || []);
+      if (status) {
+        const time = state.autoHotspotMeta?.generatedAt ? formatDateTime(state.autoHotspotMeta.generatedAt) : "暂无时间";
+        status.textContent = `自动周报已更新：${time}`;
+      }
+      renderHotspots();
+    } catch (error) {
+      state.autoHotspots = [];
+      state.autoHotspotMeta = null;
+      if (status) status.textContent = "自动周报暂未读取成功，可继续手动记录。";
+      console.warn("Auto hotspots unavailable:", error.message);
+    }
+  }
+
+  function normalizeAutoHotspots(items) {
+    return items
+      .filter((item) => item?.title)
+      .map((item, index) => ({
+        id: item.id || `auto-${item.week || getPreviousWeekLabel()}-${item.platform || "平台"}-${index}`,
+        week: item.week || getPreviousWeekLabel(),
+        platform: item.platform === "小红书" ? "小红书" : "抖音",
+        type: item.type === "TOP素材" ? "TOP素材" : "热梗",
+        title: item.title || "",
+        originTitle: item.originTitle || "",
+        originUrl: item.originUrl || "",
+        imitation: item.imitation || "",
+        imitationUrl: item.imitationUrl || "",
+        note: item.note || "",
+        source: "auto",
+        createdAt: Number(item.createdAt || 0),
+        updatedAt: Number(item.updatedAt || 0)
+      }));
   }
 
   function resetHotspotForm() {
@@ -2981,13 +3026,14 @@
   }
 
   function renderHotspots() {
-    const options = sortHotspotWeeks(uniqueValues([getPreviousWeekLabel(), ...state.hotspots.map((item) => item.week)]));
+    const allHotspots = mergedHotspots();
+    const options = sortHotspotWeeks(uniqueValues([getPreviousWeekLabel(), ...allHotspots.map((item) => item.week)]));
     if (!state.hotspotWeek || !options.includes(state.hotspotWeek)) {
       state.hotspotWeek = options[0] || getPreviousWeekLabel();
     }
     fillSelect("#hotspotWeekFilter", options.map((week) => [week, week]), state.hotspotWeek);
 
-    const filtered = state.hotspots.filter((item) => (item.week || getPreviousWeekLabel()) === state.hotspotWeek);
+    const filtered = allHotspots.filter((item) => (item.week || getPreviousWeekLabel()) === state.hotspotWeek);
     $("#hotspotFocusWeek").textContent = state.hotspotWeek || getPreviousWeekLabel();
     $("#hotspotFocusHint").textContent = `${platformCount(filtered, "抖音")} 条抖音 · ${platformCount(filtered, "小红书")} 条小红书`;
     $("#hotspotFocusCount").textContent = filtered.length;
@@ -3058,11 +3104,13 @@
   }
 
   function renderHotspotItem(item) {
+    const isAuto = item.source === "auto";
     return `
-      <article class="hotspot-item ${item.type === "TOP素材" ? "top" : "meme"}" data-id="${item.id}">
+      <article class="hotspot-item ${item.type === "TOP素材" ? "top" : "meme"} ${isAuto ? "auto" : ""}" data-id="${item.id}">
         <div class="hotspot-item-title">
           <span>${escapeHtml(item.type || "热梗")}</span>
           <strong>${escapeHtml(item.title || "未命名热点")}</strong>
+          ${isAuto ? `<em>自动</em>` : ""}
         </div>
         ${item.originTitle || item.originUrl ? `
           <div class="hotspot-info">
@@ -3082,12 +3130,27 @@
             <p>${escapeHtml(item.note)}</p>
           </div>
         ` : ""}
-        <div class="card-actions">
+        ${isAuto ? `<div class="hotspot-auto-tip">来自每周一自动周报，不会覆盖你的手动记录。</div>` : `<div class="card-actions">
           <button class="link-btn" data-action="edit" type="button">编辑</button>
           <button class="link-btn danger" data-action="delete" type="button">删除</button>
-        </div>
+        </div>`}
       </article>
     `;
+  }
+
+  function mergedHotspots() {
+    const map = new Map();
+    [...state.autoHotspots, ...state.hotspots].forEach((item) => {
+      const key = [
+        item.source === "auto" ? item.id : "manual",
+        item.week || "",
+        item.platform || "",
+        item.type || "",
+        item.title || ""
+      ].join("|");
+      map.set(key, item);
+    });
+    return [...map.values()];
   }
 
   function groupHotspotsByWeek(items) {
