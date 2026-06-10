@@ -1192,6 +1192,13 @@
     $("#closeVideo").addEventListener("click", closeVideo);
     $("#videoDialog").addEventListener("close", closeVideo);
     $("#exportMaterials").addEventListener("click", exportMaterials);
+    $("#syncFeishuMaterials").addEventListener("click", () => {
+      if (!state.materials.length) {
+        alert("当前还没有素材可以同步。");
+        return;
+      }
+      syncMaterialsToFeishu(state.materials.map((item) => item.id), { manual: true });
+    });
     $("#progressPassed").addEventListener("change", (event) => {
       if (event.target.checked) setScriptStatusRadio("通过");
       if (!event.target.checked) {
@@ -1251,6 +1258,9 @@
           metricName: metricFile?.name || editing?.metricName || "",
           rating: Number($("#materialRating").value),
           cover,
+          feishuRecordId: editing?.feishuRecordId || "",
+          feishuSyncStatus: editing?.feishuSyncStatus || "",
+          feishuSyncedAt: editing?.feishuSyncedAt || 0,
           createdAt: editing?.createdAt || Date.now(),
           updatedAt: Date.now()
         };
@@ -1262,6 +1272,7 @@
         resetMaterialForm();
         $("#materialDialog").close();
         renderMaterials();
+        syncMaterialsToFeishu([id]);
       } catch (error) {
         alert(error.message);
       } finally {
@@ -1933,6 +1944,7 @@
                 <div class="script-status ${scriptStatusClass(item.scriptStatus)}">
                   脚本状态：${escapeHtml(item.scriptStatus || "未填写")}
                 </div>
+                ${renderFeishuSyncStatus(item)}
                 ${item.scriptLink ? `<a class="link-btn script-link ${scriptStatusClass(item.scriptStatus)}" href="${escapeAttr(item.scriptLink)}" target="_blank" rel="noreferrer">打开脚本链接</a>` : ""}
                 <div class="progress-row">${renderProgress(item.progress)}</div>
                 <div class="rating-row">${renderStars(item.rating || 0)}</div>
@@ -1979,6 +1991,7 @@
         if (item) {
           await deleteFile(item.videoKey);
           if (item.metricKey) await deleteFile(item.metricKey);
+          deleteMaterialFromFeishu(item);
         }
         state.materials = state.materials.filter((entry) => entry.id !== id);
         save("pm.materials", state.materials);
@@ -1992,9 +2005,10 @@
         const id = input.closest(".material-card").dataset.id;
         const key = `metric-${id}`;
         await putFile(key, file);
-        state.materials = state.materials.map((item) => item.id === id ? { ...item, metricKey: key, metricName: file.name } : item);
+        state.materials = state.materials.map((item) => item.id === id ? { ...item, metricKey: key, metricName: file.name, updatedAt: Date.now() } : item);
         save("pm.materials", state.materials);
         renderMaterials();
+        syncMaterialsToFeishu([id]);
       });
     });
     grid.querySelectorAll(".material-select").forEach((input) => {
@@ -2306,6 +2320,110 @@
     return item.tags || [item.tagOne, item.tagTwo, item.tagThree].filter(Boolean);
   }
 
+  function renderFeishuSyncStatus(item) {
+    const status = item.feishuSyncStatus || (item.feishuRecordId ? "synced" : "");
+    const text = {
+      syncing: "飞书：同步中",
+      synced: "飞书：已同步",
+      failed: "飞书：同步失败",
+      pending: "飞书：待同步"
+    }[status] || "飞书：未同步";
+    const title = item.feishuSyncMessage ? ` title="${escapeAttr(item.feishuSyncMessage)}"` : "";
+    return `<div class="feishu-sync-status ${escapeAttr(status || "idle")}"${title}>${escapeHtml(text)}</div>`;
+  }
+
+  async function syncMaterialsToFeishu(ids, options = {}) {
+    const uniqueIds = [...new Set(ids)].filter(Boolean);
+    if (!uniqueIds.length) return;
+    if (!state.supabase || !state.user) {
+      if (options.manual) alert("请先登录账号，登录后才能同步到飞书。");
+      return;
+    }
+    let success = 0;
+    let failed = 0;
+    setFeishuSyncState(uniqueIds, { feishuSyncStatus: "syncing", feishuSyncMessage: "" });
+    for (const id of uniqueIds) {
+      const item = state.materials.find((entry) => entry.id === id);
+      if (!item) continue;
+      try {
+        const { data, error } = await state.supabase.functions.invoke("sync-feishu-material", {
+          body: {
+            action: "upsert",
+            recordId: item.feishuRecordId || "",
+            fields: buildFeishuMaterialFields(item)
+          }
+        });
+        if (error) throw error;
+        if (!data?.ok) throw new Error(data?.message || "飞书同步失败");
+        setFeishuSyncState([id], {
+          feishuRecordId: data.recordId || item.feishuRecordId || "",
+          feishuSyncStatus: "synced",
+          feishuSyncMessage: "",
+          feishuSyncedAt: Date.now()
+        }, { render: false });
+        success += 1;
+      } catch (error) {
+        failed += 1;
+        setFeishuSyncState([id], {
+          feishuSyncStatus: "failed",
+          feishuSyncMessage: error.message || "飞书同步失败"
+        }, { render: false });
+        console.warn(error);
+      }
+    }
+    save("pm.materials", state.materials);
+    renderMaterials();
+    if (options.manual) {
+      alert(failed ? `飞书同步完成：成功 ${success} 条，失败 ${failed} 条。` : `飞书同步完成：成功 ${success} 条。`);
+    }
+  }
+
+  function setFeishuSyncState(ids, patch, options = {}) {
+    state.materials = state.materials.map((item) => ids.includes(item.id) ? { ...item, ...patch } : item);
+    save("pm.materials", state.materials);
+    if (options.render !== false) renderMaterials();
+  }
+
+  function deleteMaterialFromFeishu(item) {
+    if (!state.supabase || !state.user || !item?.feishuRecordId) return;
+    state.supabase.functions.invoke("sync-feishu-material", {
+      body: {
+        action: "delete",
+        recordId: item.feishuRecordId
+      }
+    }).catch((error) => console.warn(error));
+  }
+
+  function buildFeishuMaterialFields(item) {
+    const tags = normalizedTags(item);
+    const progress = normalizeProgress(item.progress);
+    return {
+      "素材ID": item.id || "",
+      "所属项目": item.project || "未归属项目",
+      "周时间": getMaterialWeekLabel(item),
+      "素材归属日期": getMaterialBelongDate(item),
+      "上传时间": item.date || "",
+      "素材标题": item.title || "",
+      "脚本类型": normalizedScriptType(item),
+      "脚本状态": item.scriptStatus || "",
+      "脚本链接": item.scriptLink || "",
+      "第一标签": tags[0] || "",
+      "第二标签": tags[1] || "",
+      "第三标签": tags[2] || "",
+      "供应商": item.vendor || "",
+      "审核表格": progress.reviewSheet ? "是" : "否",
+      "通过": progress.passed ? "是" : "否",
+      "推进": progress.pushed ? "是" : "否",
+      "平面": progress.flat ? "是" : "否",
+      "视频": progress.video ? "是" : "否",
+      "回收": progress.recovered ? "是" : "否",
+      "数据评分": item.rating ? `${item.rating}星` : "未评分",
+      "视频文件": item.videoKey ? (item.videoName || "已上传视频") : "无",
+      "数据截图": item.metricKey ? (item.metricName || "已上传截图") : "无",
+      "更新时间": formatTime(item.updatedAt || Date.now())
+    };
+  }
+
   function renderProgress(progress = {}) {
     const items = [
       ["reviewSheet", "审核表格"],
@@ -2379,6 +2497,7 @@
     });
     save("pm.materials", state.materials);
     renderMaterials();
+    syncMaterialsToFeishu([id]);
   }
 
   function updateMaterialRating(id, rating) {
@@ -2387,6 +2506,7 @@
     ));
     save("pm.materials", state.materials);
     renderMaterials();
+    syncMaterialsToFeishu([id]);
   }
 
   function normalizeMaterialStatuses() {
@@ -2506,6 +2626,7 @@
     save("pm.materials", state.materials);
     $("#bulkTextValue").value = "";
     renderMaterials();
+    syncMaterialsToFeishu(ids);
   }
 
   function renderScriptTypeBadge(item) {
