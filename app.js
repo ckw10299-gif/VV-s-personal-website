@@ -1907,65 +1907,47 @@
     const filtered = getFilteredMaterials();
     $("#materialEmpty").style.display = filtered.length ? "none" : "block";
     $("#materialEmpty").textContent = state.materials.length ? "没有符合筛选条件的素材。" : "还没有素材，先上传一条视频素材。";
-    const projectGroups = groupMaterials(filtered);
-    grid.innerHTML = projectGroups.map(([project, weekGroups]) => `
-      <details class="project-group" open>
-        <summary class="project-group-head">
-          <h3><span class="level-badge project-badge">项目</span>${escapeHtml(project)}</h3>
-          <span>${countNestedMaterials(weekGroups)} 条素材</span>
+    const weekGroups = groupMaterialsByWeek(filtered);
+    grid.innerHTML = weekGroups.map(({ week, items, projectGroups }) => `
+      <details class="week-overview">
+        <summary class="week-overview-head">
+          <div class="week-title-block">
+            <span class="level-badge week-badge">周维度</span>
+            <h3>${escapeHtml(week)}</h3>
+            <span class="week-date-hint">${escapeHtml(getWeekDateHint(items))}</span>
+          </div>
+          <div class="week-summary-metrics">${renderWeekSummaryChips(items)}</div>
         </summary>
-        ${weekGroups.map(([week, tagGroups]) => `
-          <details class="week-group" open>
-            <summary class="week-group-head">
-              <h3><span class="level-badge week-badge">周时间</span>${escapeHtml(week)}</h3>
-              <span>${tagGroups.reduce((sum, [, items]) => sum + items.length, 0)} 条素材</span>
-            </summary>
-            ${tagGroups.map(([tag, items]) => `
-          <details class="material-group" open>
-            <summary class="material-group-head">
-              <h3><span class="level-badge tag-badge">第一标签</span>${escapeHtml(tag)}</h3>
-              <span>${items.length} 条素材</span>
-            </summary>
-            <div class="material-group-grid">
-              ${items.map((item) => `
-            <article class="material-card ${scriptCardClass(item.scriptStatus)}" data-id="${item.id}">
-              ${renderScriptStatusBadge(item.scriptStatus)}
-              <button class="cover-btn" data-action="play" title="${item.videoKey ? "播放完整视频" : "未上传视频"}">
-                <img alt="${escapeHtml(item.title)} 封面" src="${item.cover}" />
-                ${renderScriptTypeBadge(item)}
-                <span class="cover-tags">${normalizedTags(item).map((tagValue, index) => `<span class="cover-tag ${index === 0 ? "primary" : ""}">${escapeHtml(tagValue)}</span>`).join("")}</span>
-              </button>
-              <div class="material-body">
-                <label class="material-select-wrap"><input class="material-select" type="checkbox" data-id="${item.id}" />选择该素材</label>
-                <h3>${escapeHtml(item.title)}</h3>
-                <div class="material-date">记录时间：${item.date}</div>
-                <div class="material-date">归属周：${escapeHtml(getMaterialWeekLabel(item))}</div>
-                <div class="material-meta-line">脚本类型：${escapeHtml(normalizedScriptType(item))}</div>
-                <div class="material-meta-line">所属项目：${escapeHtml(item.project || "未归属项目")}</div>
-                <div class="material-meta-line">供应商：${escapeHtml(item.vendor || "未填写")}</div>
-                ${item.finalName ? `<div class="material-meta-line">最终命名：${escapeHtml(item.finalName)}</div>` : ""}
-                ${item.storageUrl ? `<div class="material-meta-line">素材存放：${renderStorageAddress(item.storageUrl)}</div>` : ""}
-                <div class="script-status ${scriptStatusClass(item.scriptStatus)}">
-                  脚本状态：${escapeHtml(item.scriptStatus || "未填写")}
-                </div>
-                ${renderFeishuSyncStatus(item)}
-                ${item.scriptLink ? `<a class="link-btn script-link ${scriptStatusClass(item.scriptStatus)}" href="${escapeAttr(item.scriptLink)}" target="_blank" rel="noreferrer">打开脚本链接</a>` : ""}
-                <div class="progress-row">${renderProgress(item.progress)}</div>
-                <div class="rating-row">${renderStars(item.rating || 0)}</div>
-                <div class="metric-slot" id="metric-${item.id}"></div>
-                <div class="card-actions">
-                  <label class="ghost-btn">更新数据截图<input data-action="metric" type="file" accept="image/*" hidden /></label>
-                  <button class="link-btn" data-action="edit">编辑</button>
-                  <button class="link-btn" data-action="delete">删除</button>
-                </div>
-              </div>
-            </article>
+        <div class="week-overview-body">
+          <div class="week-vendor-strip">${renderWeekVendorPreview(items)}</div>
+          ${projectGroups.map(([project, scriptTypeGroups]) => `
+            <details class="project-slice" open>
+              <summary class="project-slice-head">
+                <h4><span class="level-badge project-badge">项目</span>${escapeHtml(project)}</h4>
+                <span>${countScriptTypeGroups(scriptTypeGroups)} 条素材</span>
+              </summary>
+              ${scriptTypeGroups.map(([scriptType, tagGroups]) => `
+                <details class="script-type-group" open>
+                  <summary class="script-type-head">
+                    <h4><span class="script-type-pill">${escapeHtml(scriptType)}</span></h4>
+                    <span>${countTagGroups(tagGroups)} 条素材</span>
+                  </summary>
+                  ${tagGroups.map(([tag, tagItems]) => `
+                    <details class="material-group" open>
+                      <summary class="material-group-head">
+                        <h3><span class="level-badge tag-badge">第一标签</span>${escapeHtml(tag)}</h3>
+                        <span>${tagItems.length} 条素材</span>
+                      </summary>
+                      <div class="material-group-grid">
+                        ${tagItems.map(renderMaterialCard).join("")}
+                      </div>
+                    </details>
+                  `).join("")}
+                </details>
               `).join("")}
-            </div>
-          </details>
-            `).join("")}
-          </details>
-        `).join("")}
+            </details>
+          `).join("")}
+        </div>
       </details>
     `).join("");
 
@@ -2019,6 +2001,70 @@
       input.addEventListener("change", updateSelectedMaterialCount);
     });
     updateSelectedMaterialCount();
+  }
+
+  function renderMaterialCard(item) {
+    return `
+      <article class="material-card ${scriptCardClass(item.scriptStatus)}" data-id="${item.id}">
+        ${renderScriptStatusBadge(item.scriptStatus)}
+        <button class="cover-btn" data-action="play" title="${item.videoKey ? "播放完整视频" : "未上传视频"}">
+          <img alt="${escapeAttr(item.title)} 封面" src="${escapeAttr(item.cover)}" />
+          ${renderScriptTypeBadge(item)}
+          <span class="cover-tags">${normalizedTags(item).map((tagValue, index) => `<span class="cover-tag ${index === 0 ? "primary" : ""}">${escapeHtml(tagValue)}</span>`).join("")}</span>
+        </button>
+        <div class="material-body">
+          <label class="material-select-wrap"><input class="material-select" type="checkbox" data-id="${item.id}" />选择该素材</label>
+          <h3>${escapeHtml(item.title)}</h3>
+          <div class="material-date">记录时间：${escapeHtml(item.date || "")}</div>
+          <div class="material-date">归属周：${escapeHtml(getMaterialWeekLabel(item))}</div>
+          <div class="material-meta-line"><span>脚本类型</span>${escapeHtml(normalizedScriptType(item))}</div>
+          <div class="material-meta-line"><span>所属项目</span>${escapeHtml(item.project || "未归属项目")}</div>
+          <div class="material-meta-line"><span>供应商</span>${escapeHtml(item.vendor || "未填写")}</div>
+          ${item.finalName ? `<div class="material-meta-line"><span>最终命名</span>${escapeHtml(item.finalName)}</div>` : ""}
+          ${item.storageUrl ? `<div class="material-meta-line"><span>素材存放</span>${renderStorageAddress(item.storageUrl)}</div>` : ""}
+          <div class="script-status ${scriptStatusClass(item.scriptStatus)}">
+            脚本状态：${escapeHtml(item.scriptStatus || "未填写")}
+          </div>
+          ${renderFeishuSyncStatus(item)}
+          ${item.scriptLink ? `<a class="link-btn script-link ${scriptStatusClass(item.scriptStatus)}" href="${escapeAttr(item.scriptLink)}" target="_blank" rel="noreferrer">打开脚本链接</a>` : ""}
+          <div class="progress-row">${renderProgress(item.progress)}</div>
+          <div class="rating-row">${renderStars(item.rating || 0)}</div>
+          <div class="metric-slot" id="metric-${item.id}"></div>
+          <div class="card-actions">
+            <label class="ghost-btn">更新数据截图<input data-action="metric" type="file" accept="image/*" hidden /></label>
+            <button class="link-btn" data-action="edit">编辑</button>
+            <button class="link-btn" data-action="delete">删除</button>
+          </div>
+        </div>
+      </article>
+    `;
+  }
+
+  function renderWeekSummaryChips(items) {
+    const approved = items.filter((item) => isScriptApproved(item.scriptStatus)).length;
+    const rejected = items.filter((item) => isScriptRejected(item.scriptStatus)).length;
+    const done = items.filter((item) => normalizeProgress(item.progress).recovered).length;
+    const rate = items.length ? Math.round((approved / items.length) * 100) : 0;
+    return `
+      <span class="week-chip total">总 ${items.length}</span>
+      <span class="week-chip approved">通过 ${approved}</span>
+      <span class="week-chip rejected">未通过 ${rejected}</span>
+      <span class="week-chip done">验收 ${done}</span>
+      <span class="week-chip rate">通过率 ${rate}%</span>
+    `;
+  }
+
+  function renderWeekVendorPreview(items) {
+    const rows = vendorRows(items);
+    if (!rows.length) return `<span class="vendor-pill muted">暂无供应商</span>`;
+    return rows.slice(0, 6).map((row) => `<span class="vendor-pill">${escapeHtml(row.name)} <b>${row.count}</b></span>`).join("");
+  }
+
+  function getWeekDateHint(items) {
+    const dates = items.map((item) => getMaterialBelongDate(item)).sort();
+    const start = dates[0] || "";
+    const end = dates[dates.length - 1] || "";
+    return start && end && start !== end ? `${start} 至 ${end}` : (start || "暂无日期");
   }
 
   function renderMaterialStats() {
@@ -2207,7 +2253,7 @@
         "最终命名": item.finalName || "",
         "素材存放地址": item.storageUrl || "",
         "脚本类型": normalizedScriptType(item),
-        "脚本状态": item.scriptStatus || "",
+        "脚本状态": item.scriptStatus || "未设置",
         "脚本链接": item.scriptLink || "",
         "第一标签": tags[0] || "",
         "第二标签": tags[1] || "",
@@ -2266,41 +2312,83 @@
     return getWeekRangeLabel(getMaterialBelongDate(item));
   }
 
-  function groupMaterials(materials) {
-    const projects = materials.reduce((projectMap, item) => {
-      const project = item.project?.trim() || "未归属项目";
+  function groupMaterialsByWeek(materials) {
+    const weekMap = materials.reduce((map, item) => {
       const week = getMaterialWeekLabel(item);
+      if (!map.has(week)) map.set(week, []);
+      map.get(week).push(item);
+      return map;
+    }, new Map());
+
+    return [...weekMap.entries()]
+      .map(([week, items]) => ({
+        week,
+        items,
+        sortTime: getNewestMaterialTime(items),
+        projectGroups: groupWeekProjects(items)
+      }))
+      .sort((a, b) => b.sortTime - a.sortTime || a.week.localeCompare(b.week, "zh-CN"));
+  }
+
+  function groupWeekProjects(items) {
+    const projects = new Map();
+    items.forEach((item) => {
+      const project = item.project?.trim() || "未归属项目";
+      const scriptType = normalizedScriptType(item);
       const firstTag = normalizedTags(item)[0]?.trim() || "未分类";
-      if (!projectMap.has(project)) projectMap.set(project, new Map());
-      const weekMap = projectMap.get(project);
-      if (!weekMap.has(week)) weekMap.set(week, new Map());
-      const tagMap = weekMap.get(week);
+      if (!projects.has(project)) projects.set(project, new Map());
+      const typeMap = projects.get(project);
+      if (!typeMap.has(scriptType)) typeMap.set(scriptType, new Map());
+      const tagMap = typeMap.get(scriptType);
       if (!tagMap.has(firstTag)) tagMap.set(firstTag, []);
       tagMap.get(firstTag).push(item);
-      return projectMap;
-    }, new Map());
+    });
+
     return [...projects.entries()]
-      .sort(([a], [b]) => a.localeCompare(b, "zh-CN"))
-      .map(([project, weekMap]) => [
+      .sort(([, a], [, b]) => countScriptTypeGroups(b) - countScriptTypeGroups(a))
+      .map(([project, typeMap]) => [
         project,
-        [...weekMap.entries()]
-          .sort(([, tagMapA], [, tagMapB]) => getNewestDateFromTagMap(tagMapB) - getNewestDateFromTagMap(tagMapA))
-          .map(([week, tagMap]) => [
-            week,
-            [...tagMap.entries()].sort(([, itemsA], [, itemsB]) => itemsB.length - itemsA.length)
+        [...typeMap.entries()]
+          .sort(([aType, aTags], [bType, bTags]) => (
+            scriptTypeOrder(aType) - scriptTypeOrder(bType)
+            || countTagGroups(bTags) - countTagGroups(aTags)
+            || aType.localeCompare(bType, "zh-CN")
+          ))
+          .map(([scriptType, tagMap]) => [
+            scriptType,
+            [...tagMap.entries()]
+              .map(([tag, tagItems]) => [
+                tag,
+                [...tagItems].sort((a, b) => parseISODate(getMaterialBelongDate(b)).getTime() - parseISODate(getMaterialBelongDate(a)).getTime())
+              ])
+              .sort(([, itemsA], [, itemsB]) => itemsB.length - itemsA.length)
           ])
       ]);
   }
 
-  function countNestedMaterials(weekGroups) {
-    return weekGroups.reduce((sum, [, tagGroups]) => (
-      sum + tagGroups.reduce((inner, [, items]) => inner + items.length, 0)
-    ), 0);
+  function countScriptTypeGroups(scriptTypeGroups) {
+    return [...scriptTypeGroups.values ? scriptTypeGroups.values() : scriptTypeGroups].reduce((sum, group) => {
+      const tagGroups = Array.isArray(group) && Array.isArray(group[1]) ? group[1] : group;
+      return sum + countTagGroups(tagGroups);
+    }, 0);
   }
 
-  function getNewestDateFromTagMap(tagMap) {
-    const times = [...tagMap.values()].flat().map((item) => parseISODate(getMaterialBelongDate(item)).getTime());
-    return Math.max(...times);
+  function countTagGroups(tagGroups) {
+    return [...tagGroups.values ? tagGroups.values() : tagGroups].reduce((sum, group) => {
+      const items = Array.isArray(group) && Array.isArray(group[1]) ? group[1] : group;
+      return sum + items.length;
+    }, 0);
+  }
+
+  function getNewestMaterialTime(items) {
+    const times = items.map((item) => parseISODate(getMaterialBelongDate(item)).getTime());
+    return times.length ? Math.max(...times) : 0;
+  }
+
+  function scriptTypeOrder(type) {
+    return ["AE脚本", "UE脚本", "真人脚本"].indexOf(type) >= 0
+      ? ["AE脚本", "UE脚本", "真人脚本"].indexOf(type)
+      : 99;
   }
 
   function getWeekRangeLabel(dateValue) {
@@ -2481,7 +2569,7 @@
       "最终命名": item.finalName || "",
       "素材存放地址": item.storageUrl || "",
       "脚本类型": normalizedScriptType(item),
-      "脚本状态": item.scriptStatus || "",
+      "脚本状态": item.scriptStatus || "未设置",
       "脚本链接": item.scriptLink || "",
       "第一标签": tags[0] || "",
       "第二标签": tags[1] || "",

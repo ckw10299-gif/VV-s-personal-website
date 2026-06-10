@@ -1467,12 +1467,186 @@ h3 { font-size: 17px; }
   gap: 12px;
 }
 
+.week-overview {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  gap: 0;
+  border: 1px solid rgba(223, 160, 50, .34);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 96% 0, rgba(126, 214, 181, .24), transparent 28%),
+    linear-gradient(135deg, rgba(255, 253, 246, .96), rgba(255, 244, 206, .9));
+  box-shadow: 0 18px 48px rgba(96, 64, 20, .12);
+}
+
+.week-overview::after {
+  content: "";
+  position: absolute;
+  right: 24px;
+  top: 0;
+  width: 78px;
+  height: 16px;
+  border-radius: 0 0 999px 999px;
+  background: rgba(255, 188, 87, .7);
+  box-shadow: -92px 0 0 rgba(126, 214, 181, .34), -184px 0 0 rgba(255, 143, 112, .26);
+  pointer-events: none;
+}
+
+.week-overview-head {
+  display: grid;
+  grid-template-columns: minmax(230px, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  min-height: 92px;
+  padding: 20px 22px;
+}
+
+.week-title-block {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px 10px;
+}
+
+.week-title-block h3 {
+  font-size: 25px;
+  line-height: 1.05;
+}
+
+.week-date-hint {
+  grid-column: 2;
+  color: #745427;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.week-summary-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.week-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 8px 11px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 64, 20, .12);
+  color: #4b2a07;
+  background: rgba(255, 255, 255, .72);
+  font-size: 13px;
+  font-weight: 950;
+  box-shadow: 0 7px 18px rgba(96, 64, 20, .08);
+}
+
+.week-chip.total { background: #fff0b8; color: #70470a; }
+.week-chip.approved { background: #dcfff2; color: #087152; }
+.week-chip.rejected { background: #fee2e2; color: #b91c1c; }
+.week-chip.done { background: #e0f2fe; color: #075985; }
+.week-chip.rate { background: #f5e8ff; color: #6d28d9; }
+
+.week-overview-body {
+  display: grid;
+  gap: 14px;
+  padding: 0 18px 18px;
+}
+
+.week-vendor-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255,255,255,.62);
+}
+
+.vendor-pill {
+  padding: 7px 10px;
+  border-radius: 999px;
+  color: #604014;
+  background: #fff6d8;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.vendor-pill b {
+  color: #087152;
+}
+
+.vendor-pill.muted {
+  color: var(--muted);
+  background: rgba(255,255,255,.72);
+}
+
+.project-slice {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(126, 214, 181, .32);
+  border-radius: 20px;
+  background: rgba(255,255,255,.68);
+}
+
+.project-slice-head,
+.script-type-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.project-slice-head h4,
+.script-type-head h4 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+}
+
+.project-slice-head > span,
+.script-type-head > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.script-type-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(99, 102, 241, .16);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(250, 252, 255, .82), rgba(255,255,255,.56));
+}
+
+.script-type-pill {
+  display: inline-flex;
+  min-width: 68px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: #4338ca;
+  background: #e0e7ff;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+details.week-overview,
+details.project-slice,
+details.script-type-group,
 details.project-group,
 details.week-group,
 details.material-group {
   list-style: none;
 }
 
+details.week-overview > summary,
+details.project-slice > summary,
+details.script-type-group > summary,
 details.project-group > summary,
 details.week-group > summary,
 details.material-group > summary {
@@ -1480,6 +1654,9 @@ details.material-group > summary {
   list-style: none;
 }
 
+details.week-overview > summary::-webkit-details-marker,
+details.project-slice > summary::-webkit-details-marker,
+details.script-type-group > summary::-webkit-details-marker,
 details.project-group > summary::-webkit-details-marker,
 details.week-group > summary::-webkit-details-marker,
 details.material-group > summary::-webkit-details-marker {
@@ -1839,9 +2016,24 @@ details:not([open]) > .material-group-head h3::before {
 .card-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
 
 .material-meta-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
   margin-top: 8px;
   color: #3d4658;
   font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.material-meta-line span {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  color: #845100;
+  background: #fff0b8;
+  font-size: 11px;
+  font-weight: 950;
 }
 
 .inline-link {
@@ -2618,6 +2810,8 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   .script-status-options { grid-template-columns: 1fr; }
   .filter-bar { grid-template-columns: 1fr 1fr; }
   .bulk-bar { top: 96px; right: 12px; }
+  .week-overview-head { grid-template-columns: 1fr; }
+  .week-summary-metrics { justify-content: flex-start; }
   .dashboard-controls { align-items: flex-start; flex-direction: column; }
   .stats-grid { grid-template-columns: 1fr; }
   .review-row { grid-template-columns: 1fr; }
@@ -2633,6 +2827,12 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   .sidebar-cloud-panel .cloud-form { grid-template-columns: 1fr; }
   .filter-bar { grid-template-columns: 1fr; }
   .bulk-bar { top: 88px; right: 8px; width: calc(100vw - 16px); }
+  .week-overview-head { padding: 18px; }
+  .week-title-block { grid-template-columns: 1fr; }
+  .week-date-hint { grid-column: auto; }
+  .project-slice-head,
+  .script-type-head,
+  .material-group-head { align-items: flex-start; flex-direction: column; }
   .month-controls { width: 100%; flex-direction: column; align-items: stretch; }
   .month-controls input, .month-controls select { width: 100%; }
 }
