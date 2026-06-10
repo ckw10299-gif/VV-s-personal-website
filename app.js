@@ -2220,6 +2220,7 @@
         "平面": progress.flat ? "是" : "否",
         "视频": progress.video ? "是" : "否",
         "回收": progress.recovered ? "是" : "否",
+        "验收状态": progress.recovered ? "已结束" : "进行中",
         "数据评分": item.rating ? `${item.rating}星` : "未评分",
         "视频文件": item.videoKey ? (item.videoName || "已上传视频") : "无",
         "数据截图": item.metricKey ? (item.metricName || "已上传截图") : "无"
@@ -2492,6 +2493,7 @@
       "平面": progress.flat ? "是" : "否",
       "视频": progress.video ? "是" : "否",
       "回收": progress.recovered ? "是" : "否",
+      "验收状态": progress.recovered ? "已结束" : "进行中",
       "数据评分": item.rating ? `${item.rating}星` : "未评分",
       "视频文件": item.videoKey ? (item.videoName || "已上传视频") : "无",
       "数据截图": item.metricKey ? (item.metricName || "已上传截图") : "无",
