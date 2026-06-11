@@ -50,6 +50,8 @@
     statsWeek: getWeekRangeLabel(toISODate(new Date())),
     reviewDimension: "project",
     reviewWeek: "",
+    materialOpenKeys: new Set(),
+    materialOpenStateReady: false,
     goals: loadPrivateArray("pm.goals"),
     todos: loadPrivateArray("pm.todos"),
     materials: loadPrivateArray("pm.materials"),
@@ -1900,6 +1902,7 @@
 
   async function renderMaterials() {
     const grid = $("#materialGrid");
+    rememberMaterialOpenState(grid);
     normalizeMaterialStatuses();
     renderMaterialFilterOptions();
     renderMaterialStats();
@@ -1909,7 +1912,7 @@
     $("#materialEmpty").textContent = state.materials.length ? "没有符合筛选条件的素材。" : "还没有素材，先上传一条视频素材。";
     const weekGroups = groupMaterialsByWeek(filtered);
     grid.innerHTML = weekGroups.map(({ week, items, projectGroups }) => `
-      <details class="week-overview">
+      <details class="week-overview" data-open-key="${escapeAttr(materialOpenKey("week", week))}" ${detailOpenAttr(materialOpenKey("week", week), false)}>
         <summary class="week-overview-head">
           <div class="week-title-block">
             <span class="level-badge week-badge">周维度</span>
@@ -1921,19 +1924,19 @@
         <div class="week-overview-body">
           <div class="week-vendor-strip">${renderWeekVendorPreview(items)}</div>
           ${projectGroups.map(([project, scriptTypeGroups]) => `
-            <details class="project-slice" open>
+            <details class="project-slice" data-open-key="${escapeAttr(materialOpenKey("project", week, project))}" ${detailOpenAttr(materialOpenKey("project", week, project), true)}>
               <summary class="project-slice-head">
                 <h4><span class="level-badge project-badge">项目</span>${escapeHtml(project)}</h4>
                 <span>${countScriptTypeGroups(scriptTypeGroups)} 条素材</span>
               </summary>
               ${scriptTypeGroups.map(([scriptType, tagGroups]) => `
-                <details class="script-type-group" open>
+                <details class="script-type-group" data-open-key="${escapeAttr(materialOpenKey("scriptType", week, project, scriptType))}" ${detailOpenAttr(materialOpenKey("scriptType", week, project, scriptType), true)}>
                   <summary class="script-type-head">
                     <h4><span class="script-type-pill">${escapeHtml(scriptType)}</span></h4>
                     <span>${countTagGroups(tagGroups)} 条素材</span>
                   </summary>
                   ${tagGroups.map(([tag, tagItems]) => `
-                    <details class="material-group" open>
+                    <details class="material-group" data-open-key="${escapeAttr(materialOpenKey("tag", week, project, scriptType, tag))}" ${detailOpenAttr(materialOpenKey("tag", week, project, scriptType, tag), true)}>
                       <summary class="material-group-head">
                         <h3><span class="level-badge tag-badge">第一标签</span>${escapeHtml(tag)}</h3>
                         <span>${tagItems.length} 条素材</span>
@@ -2001,6 +2004,23 @@
       input.addEventListener("change", updateSelectedMaterialCount);
     });
     updateSelectedMaterialCount();
+  }
+
+  function rememberMaterialOpenState(grid) {
+    if (!grid) return;
+    const details = [...grid.querySelectorAll("[data-open-key]")];
+    if (!details.length) return;
+    state.materialOpenKeys = new Set(details.filter((node) => node.open).map((node) => node.dataset.openKey));
+    state.materialOpenStateReady = true;
+  }
+
+  function detailOpenAttr(key, defaultOpen = false) {
+    const shouldOpen = state.materialOpenStateReady ? state.materialOpenKeys.has(key) : defaultOpen;
+    return shouldOpen ? "open" : "";
+  }
+
+  function materialOpenKey(...parts) {
+    return parts.map((part) => String(part || "").replaceAll("|", "/")).join("|");
   }
 
   function renderMaterialCard(item) {
