@@ -1462,6 +1462,26 @@ h3 { font-size: 17px; }
   font-weight: 800;
 }
 
+.filter-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px;
+  gap: 7px;
+}
+
+.filter-mode {
+  border-color: rgba(242, 165, 31, .42);
+  background: #fff2c2;
+  color: #7a4a00;
+  font-weight: 900;
+  padding-left: 9px;
+  padding-right: 9px;
+}
+
+.filter-mode:focus {
+  border-color: #f2a51f;
+  box-shadow: 0 0 0 3px rgba(242, 165, 31, .18);
+}
+
 .material-group {
   display: grid;
   gap: 12px;
@@ -2850,6 +2870,7 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   .sidebar-cloud-panel .cloud-actions,
   .sidebar-cloud-panel .cloud-form { grid-template-columns: 1fr; }
   .filter-bar { grid-template-columns: 1fr; }
+  .filter-pair { grid-template-columns: 1fr; }
   .bulk-bar { top: 88px; right: 8px; width: calc(100vw - 16px); }
   .week-overview-head { padding: 18px 18px 18px 54px; }
   .week-title-block { grid-template-columns: 1fr; }

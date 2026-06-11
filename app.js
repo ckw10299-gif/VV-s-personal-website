@@ -72,8 +72,34 @@
       tagOne: "",
       tagTwo: "",
       tagThree: ""
-    }
+    },
+    materialFilterModes: defaultMaterialFilterModes()
   };
+
+  function defaultMaterialFilterModes() {
+    return {
+      week: "include",
+      scriptType: "include",
+      scriptStatus: "include",
+      progress: "include",
+      tagOne: "include",
+      tagTwo: "include",
+      tagThree: "include"
+    };
+  }
+
+  function updateMaterialFilterModeControls() {
+    document.querySelectorAll("[data-filter-mode]").forEach((select) => {
+      const key = select.dataset.filterMode;
+      select.value = state.materialFilterModes?.[key] || "include";
+    });
+  }
+
+  function filterByMode(activeValue, matched, key) {
+    if (!activeValue) return true;
+    const mode = state.materialFilterModes?.[key] || "include";
+    return mode === "exclude" ? !matched : matched;
+  }
 
   const $ = (selector) => document.querySelector(selector);
 
@@ -335,6 +361,7 @@
     state.docs = [];
     state.memory = normalizeMemory({});
     state.materialFilters = { week: "", scriptType: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
+    state.materialFilterModes = defaultMaterialFilterModes();
     state.reviewWeek = "";
   }
 
@@ -1317,10 +1344,18 @@
         renderMaterials();
       });
     });
+    document.querySelectorAll("[data-filter-mode]").forEach((select) => {
+      select.addEventListener("change", (event) => {
+        state.materialFilterModes[event.target.dataset.filterMode] = event.target.value;
+        renderMaterials();
+      });
+    });
     $("#clearMaterialFilters").addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
       state.materialFilters = { week: "", scriptType: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
+      state.materialFilterModes = defaultMaterialFilterModes();
+      updateMaterialFilterModeControls();
       renderMaterials();
     });
     $("#bulkField").addEventListener("change", updateBulkControl);
@@ -2226,6 +2261,7 @@
     fillSelect("#filterTagOne", [["", "全部第一标签"], ...uniqueValues(state.materials.map((item) => normalizedTags(item)[0])).map((value) => [value, value])], state.materialFilters.tagOne);
     fillSelect("#filterTagTwo", [["", "全部第二标签"], ...uniqueValues(state.materials.map((item) => normalizedTags(item)[1])).map((value) => [value, value])], state.materialFilters.tagTwo);
     fillSelect("#filterTagThree", [["", "全部第三标签"], ...uniqueValues(state.materials.map((item) => normalizedTags(item)[2])).map((value) => [value, value])], state.materialFilters.tagThree);
+    updateMaterialFilterModeControls();
   }
 
   function fillSelect(selector, options, selected) {
@@ -2239,20 +2275,19 @@
       const tags = normalizedTags(item);
       const filters = state.materialFilters;
       const progress = normalizeProgress(item.progress);
-      const progressMatch = !filters.progress || progress[filters.progress] === true;
-      const weekMatch = !filters.week || getMaterialWeekLabel(item) === filters.week;
-      const scriptTypeMatch = !filters.scriptType || normalizedScriptType(item) === filters.scriptType;
-      const scriptStatusMatch = !filters.scriptStatus
-        || (filters.scriptStatus === "approved" && isScriptApproved(item.scriptStatus))
+      const progressMatch = progress[filters.progress] === true;
+      const weekMatch = getMaterialWeekLabel(item) === filters.week;
+      const scriptTypeMatch = normalizedScriptType(item) === filters.scriptType;
+      const scriptStatusMatch = (filters.scriptStatus === "approved" && isScriptApproved(item.scriptStatus))
         || (filters.scriptStatus === "rejected" && isScriptRejected(item.scriptStatus))
         || (filters.scriptStatus === "unset" && !isScriptApproved(item.scriptStatus) && !isScriptRejected(item.scriptStatus));
-      return progressMatch
-        && weekMatch
-        && scriptTypeMatch
-        && scriptStatusMatch
-        && (!filters.tagOne || tags[0] === filters.tagOne)
-        && (!filters.tagTwo || tags[1] === filters.tagTwo)
-        && (!filters.tagThree || tags[2] === filters.tagThree);
+      return filterByMode(filters.progress, progressMatch, "progress")
+        && filterByMode(filters.week, weekMatch, "week")
+        && filterByMode(filters.scriptType, scriptTypeMatch, "scriptType")
+        && filterByMode(filters.scriptStatus, scriptStatusMatch, "scriptStatus")
+        && filterByMode(filters.tagOne, tags[0] === filters.tagOne, "tagOne")
+        && filterByMode(filters.tagTwo, tags[1] === filters.tagTwo, "tagTwo")
+        && filterByMode(filters.tagThree, tags[2] === filters.tagThree, "tagThree");
     });
   }
 

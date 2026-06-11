@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260611-material-open-state" />
+    <link rel="stylesheet" href="styles.css?v=20260611-filter-exclude" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -241,14 +241,70 @@
               <button class="ghost-btn" id="clearMaterialFilters" type="button">清空筛选</button>
             </summary>
             <div class="filter-bar">
-            <label>周维度<select id="filterWeek"></select></label>
-            <label>脚本类型<select id="filterScriptType"></select></label>
-            <label>第一标签<select id="filterTagOne"></select></label>
-            <label>第二标签<select id="filterTagTwo"></select></label>
-            <label>第三标签<select id="filterTagThree"></select></label>
-            <label>脚本状态<select id="filterScriptStatus"></select></label>
-            <label>进度<select id="filterProgress"></select></label>
-          </div>
+              <label class="filter-control">周维度
+                <span class="filter-pair">
+                  <select id="filterWeek"></select>
+                  <select class="filter-mode" data-filter-mode="week" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
+              <label class="filter-control">脚本类型
+                <span class="filter-pair">
+                  <select id="filterScriptType"></select>
+                  <select class="filter-mode" data-filter-mode="scriptType" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
+              <label class="filter-control">第一标签
+                <span class="filter-pair">
+                  <select id="filterTagOne"></select>
+                  <select class="filter-mode" data-filter-mode="tagOne" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
+              <label class="filter-control">第二标签
+                <span class="filter-pair">
+                  <select id="filterTagTwo"></select>
+                  <select class="filter-mode" data-filter-mode="tagTwo" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
+              <label class="filter-control">第三标签
+                <span class="filter-pair">
+                  <select id="filterTagThree"></select>
+                  <select class="filter-mode" data-filter-mode="tagThree" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
+              <label class="filter-control">脚本状态
+                <span class="filter-pair">
+                  <select id="filterScriptStatus"></select>
+                  <select class="filter-mode" data-filter-mode="scriptStatus" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
+              <label class="filter-control">进度
+                <span class="filter-pair">
+                  <select id="filterProgress"></select>
+                  <select class="filter-mode" data-filter-mode="progress" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
+            </div>
           </details>
           <div class="bulk-bar" id="bulkPanel">
             <div class="bulk-panel-title">
@@ -471,6 +527,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260611-material-open-state"></script>
+    <script src="app.js?v=20260611-filter-exclude"></script>
   </body>
 </html>
