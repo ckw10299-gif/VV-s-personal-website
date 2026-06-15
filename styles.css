@@ -2055,6 +2055,11 @@ details:not([open]) > .material-group-head h3::before {
   box-shadow: 0 10px 20px rgba(15, 23, 42, .24);
 }
 
+.material-card.script-rejected .cover-type-badge,
+.material-card.script-approved .cover-type-badge {
+  top: 50px;
+}
+
 .cover-type-badge.ae {
   background: #f2a51f;
   color: #4b2a07;
