@@ -2630,17 +2630,17 @@
           <input data-asset-name="${escapeAttr(draft.id)}" maxlength="120" autocomplete="off" value="${escapeAttr(draft.name || "")}" placeholder="${escapeAttr(index === 0 ? "默认使用素材标题" : `成品素材 ${index + 1}`)}" />
         </label>
         <div class="asset-drop-zone" data-asset-drop="${escapeAttr(draft.id)}" role="button" tabindex="0">
-          <input data-asset-file="${escapeAttr(draft.id)}" type="file" accept="video/*" hidden />
-          <strong>${escapeHtml(draft.file?.name || draft.videoName || "拖入视频或点击选择")}</strong>
-          <span>${draft.file ? "已选择新视频" : draft.videoKey ? "保留已上传视频，可重新选择替换" : "支持 MP4 / MOV 等视频格式"}</span>
+          <input data-asset-file="${escapeAttr(draft.id)}" type="file" accept="video/*" multiple hidden />
+          <strong>${escapeHtml(draft.file?.name || draft.videoName || "拖入一个或多个视频，或点击选择")}</strong>
+          <span>${draft.file ? "已选择新视频" : draft.videoKey ? "保留已上传视频，可重新选择替换" : "支持一次选择多个 MP4 / MOV 等视频文件"}</span>
         </div>
         ${multiple ? `<button class="icon-btn asset-remove" type="button" data-asset-remove="${escapeAttr(draft.id)}" title="删除这一条">×</button>` : ""}
       </div>
     `).join("");
     rows.querySelectorAll("[data-asset-file]").forEach((input) => {
       input.addEventListener("change", () => {
-        const file = input.files[0];
-        if (file) setAssetDraftFile(input.dataset.assetFile, file);
+        const files = [...input.files].filter(isVideoFile);
+        if (files.length) setAssetDraftFiles(input.dataset.assetFile, files);
       });
     });
     rows.querySelectorAll("[data-asset-drop]").forEach((zone) => {
@@ -2658,12 +2658,12 @@
       zone.addEventListener("drop", (event) => {
         event.preventDefault();
         zone.classList.remove("is-dragging");
-        const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("video/"));
-        if (!file) {
+        const files = [...event.dataTransfer.files].filter(isVideoFile);
+        if (!files.length) {
           alert("请拖入视频文件。");
           return;
         }
-        setAssetDraftFile(zone.dataset.assetDrop, file);
+        setAssetDraftFiles(zone.dataset.assetDrop, files);
       });
     });
     rows.querySelectorAll("[data-asset-remove]").forEach((button) => {
@@ -2676,14 +2676,39 @@
     });
   }
 
-  function setAssetDraftFile(id, file) {
+  function isVideoFile(file) {
+    return file?.type?.startsWith("video/") || /\.(mp4|mov|m4v|webm|avi|mkv)$/i.test(file?.name || "");
+  }
+
+  function assetNameFromFile(file) {
+    return (file?.name || "").replace(/\.[^.]+$/, "").trim() || file?.name || "";
+  }
+
+  function setAssetDraftFiles(id, files) {
+    const videos = [...files].filter(isVideoFile);
+    if (!videos.length) return;
     readAssetDraftInputs();
-    state.assetDrafts = state.assetDrafts.map((draft) => draft.id === id ? {
-      ...draft,
-      file,
-      videoName: file.name,
-      name: draft.name || file.name.replace(/\.[^.]+$/, "")
-    } : draft);
+    const targetIndex = Math.max(state.assetDrafts.findIndex((draft) => draft.id === id), 0);
+    const targetDraft = state.assetDrafts[targetIndex] || createAssetDraft();
+    const replacements = videos.map((file, index) => {
+      const existing = index === 0 ? targetDraft : createAssetDraft();
+      return {
+        ...existing,
+        id: existing.id || crypto.randomUUID(),
+        file,
+        videoName: file.name,
+        name: assetNameFromFile(file),
+        videoKey: index === 0 ? existing.videoKey : "",
+        cover: index === 0 ? existing.cover : ""
+      };
+    });
+    if (videos.length > 1) setAssetMode("multiple");
+    state.assetDrafts = [
+      ...state.assetDrafts.slice(0, targetIndex),
+      ...replacements,
+      ...state.assetDrafts.slice(targetIndex + 1)
+    ];
+    ensureAssetDrafts();
     renderAssetRows();
   }
 
