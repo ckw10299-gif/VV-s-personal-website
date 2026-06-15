@@ -6,6 +6,9 @@
   const PENDING_CLOUD_KEYS = "pm.pendingCloudKeys";
   const LAST_CLOUD_SYNC_KEY = "pm.lastCloudSyncAt";
   const LOCAL_DATA_LOCK_KEY = "pm.localDataLocked";
+  const TUS_CLIENT_URL = "https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js";
+  const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
+  const TUS_UPLOAD_THRESHOLD = 6 * 1024 * 1024;
   const FALLBACK_SUPABASE_CONFIG = {
     url: "https://mcqmltqlqvljpteqvpje.supabase.co",
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcW1sdHFscXZsanB0ZXF2cGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDg5MDUsImV4cCI6MjA5NTQ4NDkwNX0.Bu_W_KzNIH0uMd7IgA3NTX1wN9B0LPDbkJrSgK1hSIs"
@@ -3414,14 +3417,15 @@
   }
 
   async function putCloudFile(key, file) {
+    if (shouldUseTusUpload(file)) return putCloudFileResumable(key, file);
     const { error } = await withTimeout(state.supabase.storage
       .from("personal-assets")
       .upload(cloudFilePath(key), file, {
         cacheControl: "3600",
         upsert: true,
         contentType: file.type || "application/octet-stream"
-      }), 30000, "上传附件");
-    if (error) throw error;
+      }), 60000, "上传附件");
+    if (error) throw new Error(`Supabase 文件上传失败：${error.message || "未知错误"}`);
   }
 
   async function getCloudFile(key) {
@@ -3433,6 +3437,78 @@
       return null;
     }
     return data;
+  }
+
+  function shouldUseTusUpload(file) {
+    return Boolean(file?.type?.startsWith("video/")) || Number(file?.size || 0) >= TUS_UPLOAD_THRESHOLD;
+  }
+
+  async function ensureTusClient() {
+    if (window.tus?.Upload) return window.tus;
+    await new Promise((resolve, reject) => {
+      const existing = document.querySelector(`script[src="${TUS_CLIENT_URL}"]`);
+      if (existing) {
+        existing.addEventListener("load", resolve, { once: true });
+        existing.addEventListener("error", () => reject(new Error("视频续传组件加载失败，请检查网络后刷新页面。")), { once: true });
+        return;
+      }
+      const script = document.createElement("script");
+      script.src = TUS_CLIENT_URL;
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("视频续传组件加载失败，请检查网络后刷新页面。"));
+      document.head.appendChild(script);
+    });
+    if (!window.tus?.Upload) throw new Error("视频续传组件没有正确加载，请刷新页面后重试。");
+    return window.tus;
+  }
+
+  function storageResumableEndpoint() {
+    const config = window.PM_SUPABASE || FALLBACK_SUPABASE_CONFIG;
+    try {
+      const ref = new URL(config.url).hostname.split(".")[0];
+      return `https://${ref}.storage.supabase.co/storage/v1/upload/resumable`;
+    } catch {
+      return `${String(config.url || "").replace(/\/$/, "")}/storage/v1/upload/resumable`;
+    }
+  }
+
+  async function putCloudFileResumable(key, file) {
+    const tus = await ensureTusClient();
+    const { data, error } = await withTimeout(state.supabase.auth.getSession(), 20000, "获取上传登录状态");
+    const accessToken = data?.session?.access_token;
+    if (error || !accessToken) throw new Error("登录状态已过期，请重新登录后再上传视频。");
+    const config = window.PM_SUPABASE || FALLBACK_SUPABASE_CONFIG;
+    const objectName = cloudFilePath(key);
+    await withTimeout(new Promise((resolve, reject) => {
+      const upload = new tus.Upload(file, {
+        endpoint: storageResumableEndpoint(),
+        chunkSize: TUS_CHUNK_SIZE,
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        retryDelays: [0, 1000, 3000, 5000, 10000],
+        headers: {
+          authorization: `Bearer ${accessToken}`,
+          apikey: config.anonKey,
+          "x-upsert": "true"
+        },
+        metadata: {
+          bucketName: "personal-assets",
+          objectName,
+          contentType: file.type || "application/octet-stream",
+          cacheControl: "3600"
+        },
+        onError: (uploadError) => {
+          const message = uploadError?.originalResponse?.getBody?.() || uploadError?.message || "未知错误";
+          reject(new Error(`Supabase 视频续传失败：${message}`));
+        },
+        onSuccess: resolve
+      });
+      upload.findPreviousUploads().then((previousUploads) => {
+        if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]);
+        upload.start();
+      }).catch(() => upload.start());
+    }), 20 * 60 * 1000, "上传视频附件");
   }
 
   async function deleteCloudFile(key) {
