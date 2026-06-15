@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260611-feishu-tags" />
+    <link rel="stylesheet" href="styles.css?v=20260615-assets-upload" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -146,92 +146,108 @@
               <button class="primary-btn" id="openMaterialModal">上传素材</button>
             </div>
           </div>
-          <section class="material-dashboard">
-            <div class="dashboard-controls total-overview-head">
+          <details class="material-dashboard" open>
+            <summary class="dashboard-summary">
               <div>
-                <p class="eyebrow">全部统计</p>
-                <h2>总脚本概览</h2>
+                <p class="eyebrow">脚本数据</p>
+                <h2>脚本概览</h2>
               </div>
-            </div>
-            <div class="stats-grid total-stats-grid">
-              <article class="stat-card total">
-                <span>总产出脚本</span>
-                <strong id="allScriptCount">0</strong>
-                <small>全部素材数量</small>
-              </article>
-              <article class="stat-card approved">
-                <span>总通过脚本</span>
-                <strong id="allApprovedScriptCount">0</strong>
-                <small>脚本状态为通过</small>
-              </article>
-              <article class="stat-card rejected">
-                <span>总未通过脚本</span>
-                <strong id="allRejectedScriptCount">0</strong>
-                <small>脚本状态为不通过</small>
-              </article>
-            </div>
-            <details class="vendor-summary" id="allVendorSummary">
-              <summary>供应商分布 <span id="allVendorSummaryCount">0 个供应商</span></summary>
-              <div class="vendor-list" id="allVendorList"></div>
-            </details>
-            <div class="dashboard-controls">
-              <div>
-                <p class="eyebrow">周度概览</p>
-                <h2>周度脚本概览</h2>
-              </div>
-              <div class="month-controls">
-                <label>归属周<select id="statsWeek"></select></label>
-              </div>
-            </div>
-            <div class="stats-grid">
-              <article class="stat-card total">
-                <span>总产出脚本</span>
-                <strong id="totalScriptCount">0</strong>
-                <small>所选周全部素材</small>
-              </article>
-              <article class="stat-card approved">
-                <span>通过脚本</span>
-                <strong id="approvedScriptCount">0</strong>
-                <small>脚本状态为通过</small>
-              </article>
-              <article class="stat-card rejected">
-                <span>未通过脚本</span>
-                <strong id="rejectedScriptCount">0</strong>
-                <small>脚本状态为不通过</small>
-              </article>
-              <article class="stat-card approved">
-                <span>通过率</span>
-                <strong id="weeklyPassRate">0%</strong>
-                <small>通过 / 总产出</small>
-              </article>
-            </div>
-            <div class="weekly-vendor-panel">
-              <h3>所选周供应商分布</h3>
-              <div class="vendor-list" id="weeklyVendorList"></div>
-            </div>
-            <div class="review-panel">
-              <div class="dashboard-controls">
-                <div>
-                  <p class="eyebrow">素材复盘</p>
-                  <h2>不同维度通过率</h2>
+              <span>点击展开 / 收起</span>
+            </summary>
+            <div class="dashboard-grid-row">
+              <section class="dashboard-block">
+                <div class="dashboard-controls total-overview-head">
+                  <div>
+                    <p class="eyebrow">全部统计</p>
+                    <h2>总脚本概览</h2>
+                  </div>
                 </div>
-                <label class="review-select">查看维度
-                  <select id="reviewDimension">
-                    <option value="project">所属项目</option>
-                    <option value="scriptType">脚本类型</option>
-                    <option value="tagOne">第一标签</option>
-                    <option value="tagTwo">第二标签</option>
-                    <option value="tagThree">第三标签</option>
-                    <option value="vendor">供应商</option>
-                  </select>
-                </label>
-                <label class="review-select">复盘周维度
-                  <select id="reviewWeek"></select>
-                </label>
-              </div>
-              <div class="review-list" id="reviewList"></div>
+                <div class="stats-grid total-stats-grid">
+                  <article class="stat-card total">
+                    <span>总产出脚本</span>
+                    <strong id="allScriptCount">0</strong>
+                    <small>全部素材数量</small>
+                  </article>
+                  <article class="stat-card approved">
+                    <span>总通过脚本</span>
+                    <strong id="allApprovedScriptCount">0</strong>
+                    <small>脚本状态为通过</small>
+                  </article>
+                  <article class="stat-card rejected">
+                    <span>总未通过脚本</span>
+                    <strong id="allRejectedScriptCount">0</strong>
+                    <small>脚本状态为不通过</small>
+                  </article>
+                </div>
+                <details class="vendor-summary" id="allVendorSummary">
+                  <summary>供应商分布 <span id="allVendorSummaryCount">0 个供应商</span></summary>
+                  <div class="vendor-list" id="allVendorList"></div>
+                </details>
+              </section>
+              <section class="dashboard-block">
+                <div class="dashboard-controls">
+                  <div>
+                    <p class="eyebrow">月度概览</p>
+                    <h2>月度脚本概览</h2>
+                  </div>
+                  <div class="month-controls">
+                    <label>归属月<select id="statsMonth"></select></label>
+                  </div>
+                </div>
+                <div class="stats-grid compact-stats-grid">
+                  <article class="stat-card total"><span>产出</span><strong id="monthlyScriptCount">0</strong><small>所选月</small></article>
+                  <article class="stat-card approved"><span>通过</span><strong id="monthlyApprovedScriptCount">0</strong><small id="monthlyPassRate">0%</small></article>
+                  <article class="stat-card rejected"><span>未通过</span><strong id="monthlyRejectedScriptCount">0</strong><small>脚本状态</small></article>
+                </div>
+                <div class="weekly-vendor-panel compact-vendor-panel">
+                  <h3>所选月供应商分布</h3>
+                  <div class="vendor-list" id="monthlyVendorList"></div>
+                </div>
+              </section>
+              <section class="dashboard-block">
+                <div class="dashboard-controls">
+                  <div>
+                    <p class="eyebrow">周度概览</p>
+                    <h2>周度脚本概览</h2>
+                  </div>
+                  <div class="month-controls">
+                    <label>归属周<select id="statsWeek"></select></label>
+                  </div>
+                </div>
+                <div class="stats-grid compact-stats-grid">
+                  <article class="stat-card total"><span>产出</span><strong id="totalScriptCount">0</strong><small>所选周</small></article>
+                  <article class="stat-card approved"><span>通过</span><strong id="approvedScriptCount">0</strong><small id="weeklyPassRate">0%</small></article>
+                  <article class="stat-card rejected"><span>未通过</span><strong id="rejectedScriptCount">0</strong><small>脚本状态</small></article>
+                </div>
+                <div class="weekly-vendor-panel compact-vendor-panel">
+                  <h3>所选周供应商分布</h3>
+                  <div class="vendor-list" id="weeklyVendorList"></div>
+                </div>
+              </section>
+              <section class="dashboard-block review-panel">
+                <div class="dashboard-controls">
+                  <div>
+                    <p class="eyebrow">素材复盘</p>
+                    <h2>不同维度通过率</h2>
+                  </div>
+                  <label class="review-select">查看维度
+                    <select id="reviewDimension">
+                      <option value="project">所属项目</option>
+                      <option value="scriptType">脚本类型</option>
+                      <option value="tagOne">第一标签</option>
+                      <option value="tagTwo">第二标签</option>
+                      <option value="tagThree">第三标签</option>
+                      <option value="vendor">供应商</option>
+                    </select>
+                  </label>
+                  <label class="review-select">复盘周维度
+                    <select id="reviewWeek"></select>
+                  </label>
+                </div>
+                <div class="review-list" id="reviewList"></div>
+              </section>
             </div>
-          </section>
+          </details>
           <details class="material-tools">
             <summary class="tool-head">
               <div>
@@ -450,7 +466,15 @@
           </div>
         </fieldset>
         <label class="memory-field">供应商<input id="vendorName" maxlength="60" autocomplete="off" /><div class="memory-menu" data-menu-for="vendorName"></div></label>
-        <label>视频文件（可选）<input id="materialVideo" type="file" accept="video/*" /></label>
+        <fieldset class="type-field asset-upload-field">
+          <legend>成品素材</legend>
+          <div class="script-status-options">
+            <label><input type="radio" name="assetMode" value="single" checked />单条成品</label>
+            <label><input type="radio" name="assetMode" value="multiple" />多条成品</label>
+          </div>
+          <div class="asset-rows" id="assetRows"></div>
+          <button class="ghost-btn asset-add-btn" type="button" id="addAssetRow">新增一条成品</button>
+        </fieldset>
         <div class="three-cols">
           <label class="memory-field">第一标签<input id="tagOne" required autocomplete="off" /><div class="memory-menu" data-menu-for="tagOne"></div></label>
           <label class="memory-field">第二标签<input id="tagTwo" required autocomplete="off" /><div class="memory-menu" data-menu-for="tagTwo"></div></label>
@@ -527,6 +551,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260611-feishu-tags"></script>
+    <script src="app.js?v=20260615-assets-upload"></script>
   </body>
 </html>

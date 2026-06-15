@@ -48,8 +48,10 @@
     ideaImageUrls: [],
     activeIdeaImageUrl: "",
     statsWeek: getWeekRangeLabel(toISODate(new Date())),
+    statsMonth: getMonthLabel(toISODate(new Date())),
     reviewDimension: "project",
     reviewWeek: "",
+    assetDrafts: [],
     materialOpenKeys: new Set(),
     materialOpenStateReady: false,
     goals: loadPrivateArray("pm.goals"),
@@ -363,6 +365,8 @@
     state.materialFilters = { week: "", scriptType: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
     state.materialFilterModes = defaultMaterialFilterModes();
     state.reviewWeek = "";
+    state.statsMonth = getMonthLabel(toISODate(new Date()));
+    state.assetDrafts = [];
   }
 
   function updateCloudUI(message = "") {
@@ -886,7 +890,7 @@
       return;
     }
     for (const item of localData.materials) {
-      if (item.videoKey) await copyLocalFileToCloud(item.videoKey);
+      for (const key of materialVideoKeys(item)) await copyLocalFileToCloud(key);
       if (item.metricKey) await copyLocalFileToCloud(item.metricKey);
     }
     for (const doc of localData.docs) {
@@ -923,7 +927,7 @@
       files: {}
     };
     const fileKeys = [
-      ...backup.materials.flatMap((item) => [item.videoKey, item.metricKey]),
+      ...backup.materials.flatMap((item) => [...materialVideoKeys(item), item.metricKey]),
       ...backup.docs.map((doc) => doc.attachmentKey),
       ...backup.ideas.flatMap((idea) => ideaImageEntries(idea).map((image) => image.key))
     ].filter(Boolean);
@@ -1242,6 +1246,22 @@
         if (input.value !== "通过") $("#progressPassed").checked = false;
       });
     });
+    document.querySelectorAll('input[name="assetMode"]').forEach((input) => {
+      input.addEventListener("change", () => {
+        if (!input.checked) return;
+        if (input.value === "single" && state.assetDrafts.length > 1) {
+          state.assetDrafts = [state.assetDrafts[0]];
+        }
+        ensureAssetDrafts();
+        renderAssetRows();
+      });
+    });
+    $("#addAssetRow").addEventListener("click", () => {
+      setAssetMode("multiple");
+      readAssetDraftInputs();
+      state.assetDrafts.push(createAssetDraft());
+      renderAssetRows();
+    });
     initMaterialStatsControls();
     $("#materialForm").addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -1250,13 +1270,11 @@
       submit.textContent = "处理中...";
       try {
         const editing = state.materials.find((item) => item.id === state.editingMaterialId);
-        const videoFile = $("#materialVideo").files[0];
         const metricFile = $("#materialMetric").files[0];
         const id = editing?.id || crypto.randomUUID();
-        const videoKey = videoFile ? `video-${id}-${Date.now()}` : editing?.videoKey || "";
         const metricKey = metricFile ? `metric-${id}-${Date.now()}` : editing?.metricKey || "";
-        const cover = videoFile ? await captureVideoCover(videoFile) : editing?.cover || createPlaceholderCover($("#materialTitle").value.trim());
-        if (videoFile) await putFile(videoKey, videoFile);
+        const assets = await saveAssetDrafts(id, editing);
+        const primaryAsset = assets[0] || null;
         if (metricFile) await putFile(metricKey, metricFile);
         const formData = new FormData(event.currentTarget);
         const progress = {
@@ -1283,12 +1301,14 @@
           tags: [$("#tagOne").value.trim(), $("#tagTwo").value.trim(), $("#tagThree").value.trim()],
           date: $("#materialDate").value,
           belongDate: $("#materialBelongDate").value || $("#materialDate").value,
-          videoKey,
-          videoName: videoFile?.name || editing?.videoName || "",
+          assetMode: assets.length > 1 ? "multiple" : "single",
+          assets,
+          videoKey: primaryAsset?.videoKey || "",
+          videoName: primaryAsset?.videoName || "",
           metricKey,
           metricName: metricFile?.name || editing?.metricName || "",
           rating: Number($("#materialRating").value),
-          cover,
+          cover: primaryAsset?.cover || editing?.cover || createPlaceholderCover($("#materialTitle").value.trim()),
           feishuRecordId: editing?.feishuRecordId || "",
           feishuSyncStatus: editing?.feishuSyncStatus || "",
           feishuSyncedAt: editing?.feishuSyncedAt || 0,
@@ -1315,6 +1335,10 @@
   }
 
   function initMaterialStatsControls() {
+    $("#statsMonth").addEventListener("change", (event) => {
+      state.statsMonth = event.target.value;
+      renderMaterialStats();
+    });
     $("#statsWeek").addEventListener("change", (event) => {
       state.statsWeek = event.target.value;
       renderMaterialStats();
@@ -1999,6 +2023,9 @@
     grid.querySelectorAll("[data-action='play']").forEach((button) => {
       button.addEventListener("click", () => playMaterial(button.closest(".material-card").dataset.id));
     });
+    grid.querySelectorAll("[data-action='play-asset']").forEach((button) => {
+      button.addEventListener("click", () => playMaterial(button.closest(".material-card").dataset.id, button.dataset.assetId));
+    });
     grid.querySelectorAll("[data-action='edit']").forEach((button) => {
       button.addEventListener("click", () => openMaterialEditor(button.closest(".material-card").dataset.id));
     });
@@ -2013,7 +2040,8 @@
         const id = button.closest(".material-card").dataset.id;
         const item = state.materials.find((entry) => entry.id === id);
         if (item) {
-          await deleteFile(item.videoKey);
+          const keys = [...new Set([item.videoKey, ...normalizedAssets(item).map((asset) => asset.videoKey)].filter(Boolean))];
+          for (const key of keys) await deleteFile(key);
           if (item.metricKey) await deleteFile(item.metricKey);
           deleteMaterialFromFeishu(item);
         }
@@ -2059,11 +2087,15 @@
   }
 
   function renderMaterialCard(item) {
+    const assets = normalizedAssets(item);
+    const primaryAsset = assets[0] || {};
+    const cover = primaryAsset.cover || item.cover || createPlaceholderCover(item.title);
+    const hasPrimaryVideo = Boolean(primaryAsset.videoKey || item.videoKey);
     return `
       <article class="material-card ${scriptCardClass(item.scriptStatus)}" data-id="${item.id}">
         ${renderScriptStatusBadge(item.scriptStatus)}
-        <button class="cover-btn" data-action="play" title="${item.videoKey ? "播放完整视频" : "未上传视频"}">
-          <img alt="${escapeAttr(item.title)} 封面" src="${escapeAttr(item.cover)}" />
+        <button class="cover-btn" data-action="play" title="${hasPrimaryVideo ? "播放完整视频" : "未上传视频"}">
+          <img alt="${escapeAttr(item.title)} 封面" src="${escapeAttr(cover)}" />
           ${renderScriptTypeBadge(item)}
           <span class="cover-tags">${normalizedTags(item).map((tagValue, index) => `<span class="cover-tag ${index === 0 ? "primary" : ""}">${escapeHtml(tagValue)}</span>`).join("")}</span>
         </button>
@@ -2082,6 +2114,7 @@
           </div>
           ${renderFeishuSyncStatus(item)}
           ${item.scriptLink ? `<a class="link-btn script-link ${scriptStatusClass(item.scriptStatus)}" href="${escapeAttr(item.scriptLink)}" target="_blank" rel="noreferrer">打开脚本链接</a>` : ""}
+          ${renderMaterialAssets(item)}
           <div class="progress-row">${renderProgress(item.progress)}</div>
           <div class="rating-row">${renderStars(item.rating || 0)}</div>
           <div class="metric-slot" id="metric-${item.id}"></div>
@@ -2130,6 +2163,15 @@
     $("#allRejectedScriptCount").textContent = allRejected;
     renderVendorList("#allVendorList", state.materials);
     $("#allVendorSummaryCount").textContent = `${vendorRows(state.materials).length} 个供应商`;
+
+    const monthly = state.materials.filter((item) => getMaterialMonthLabel(item) === state.statsMonth);
+    const monthlyApproved = monthly.filter((item) => isScriptApproved(item.scriptStatus)).length;
+    const monthlyRejected = monthly.filter((item) => isScriptRejected(item.scriptStatus)).length;
+    $("#monthlyScriptCount").textContent = monthly.length;
+    $("#monthlyApprovedScriptCount").textContent = monthlyApproved;
+    $("#monthlyRejectedScriptCount").textContent = monthlyRejected;
+    $("#monthlyPassRate").textContent = `${monthly.length ? Math.round((monthlyApproved / monthly.length) * 100) : 0}%`;
+    renderVendorList("#monthlyVendorList", monthly);
 
     const weekly = state.materials.filter((item) => getMaterialWeekLabel(item) === state.statsWeek);
     const approved = weekly.filter((item) => isScriptApproved(item.scriptStatus)).length;
@@ -2227,13 +2269,21 @@
   }
 
   function renderMaterialFilterOptions() {
+    const monthOptions = uniqueValues([
+      getMonthLabel(toISODate(new Date())),
+      ...state.materials.map(getMaterialMonthLabel)
+    ]).map((value) => [value, value]);
     const weekOptions = uniqueValues([
       getWeekRangeLabel(toISODate(new Date())),
       ...state.materials.map(getMaterialWeekLabel)
     ]).map((value) => [value, value]);
+    if (!state.statsMonth || !monthOptions.some(([value]) => value === state.statsMonth)) {
+      state.statsMonth = monthOptions[0]?.[0] || getMonthLabel(toISODate(new Date()));
+    }
     if (!state.statsWeek || !weekOptions.some(([value]) => value === state.statsWeek)) {
       state.statsWeek = weekOptions[0]?.[0] || getWeekRangeLabel(toISODate(new Date()));
     }
+    fillSelect("#statsMonth", monthOptions, state.statsMonth);
     fillSelect("#statsWeek", weekOptions, state.statsWeek);
     fillSelect("#filterWeek", [["", "全部周维度"], ...weekOptions], state.materialFilters.week);
     fillSelect("#reviewWeek", [["", "全部周维度"], ...weekOptions], state.reviewWeek);
@@ -2323,7 +2373,7 @@
         "回收": progress.recovered ? "是" : "否",
         "验收状态": progress.recovered ? "已结束" : "进行中",
         "数据评分": item.rating ? `${item.rating}星` : "未评分",
-        "视频文件": item.videoKey ? (item.videoName || "已上传视频") : "无",
+        "视频文件": materialAssetNames(item) || "无",
         "数据截图": item.metricKey ? (item.metricName || "已上传截图") : "无"
       };
     });
@@ -2365,6 +2415,10 @@
 
   function getMaterialWeekLabel(item) {
     return getWeekRangeLabel(getMaterialBelongDate(item));
+  }
+
+  function getMaterialMonthLabel(item) {
+    return getMonthLabel(getMaterialBelongDate(item));
   }
 
   function groupMaterialsByWeek(materials) {
@@ -2456,12 +2510,20 @@
     return `${start.getMonth() + 1}.${start.getDate()}-${end.getMonth() + 1}.${end.getDate()}`;
   }
 
-  async function playMaterial(id) {
+  function getMonthLabel(dateValue) {
+    const date = parseISODate(dateValue || toISODate(new Date()));
+    return `${date.getFullYear()}年${date.getMonth() + 1}月`;
+  }
+
+  async function playMaterial(id, assetId = "") {
     const item = state.materials.find((entry) => entry.id === id);
-    if (!item || !item.videoKey) return;
-    const file = await getFile(item.videoKey);
+    if (!item) return;
+    const asset = assetId ? normalizedAssets(item).find((entry) => entry.id === assetId) : normalizedAssets(item)[0];
+    const videoKey = asset?.videoKey || item.videoKey;
+    if (!videoKey) return;
+    const file = await getFile(videoKey);
     if (!file) return;
-    $("#videoTitle").textContent = item.title;
+    $("#videoTitle").textContent = asset?.name || item.title;
     $("#videoPlayer").src = URL.createObjectURL(file);
     $("#videoDialog").showModal();
   }
@@ -2488,6 +2550,181 @@
       return `<a class="inline-link" href="${escapeAttr(text)}" target="_blank" rel="noreferrer">${escapeHtml(text)}</a>`;
     }
     return escapeHtml(text);
+  }
+
+  function normalizedAssets(item) {
+    const assets = Array.isArray(item?.assets) ? item.assets : [];
+    const normalized = assets
+      .filter((asset) => asset && (asset.videoKey || asset.videoName || asset.name))
+      .map((asset, index) => ({
+        id: asset.id || `asset-${index + 1}`,
+        name: asset.name || asset.videoName || `${item?.title || "成品素材"} ${index + 1}`,
+        videoKey: asset.videoKey || "",
+        videoName: asset.videoName || "",
+        cover: asset.cover || "",
+        createdAt: asset.createdAt || item?.createdAt || Date.now()
+      }));
+    if (!normalized.length && (item?.videoKey || item?.videoName)) {
+      normalized.push({
+        id: "primary",
+        name: item.videoName || item.title || "成品素材",
+        videoKey: item.videoKey || "",
+        videoName: item.videoName || "",
+        cover: item.cover || "",
+        createdAt: item.createdAt || Date.now()
+      });
+    }
+    return normalized;
+  }
+
+  function materialVideoKeys(item) {
+    return [...new Set([item?.videoKey, ...normalizedAssets(item).map((asset) => asset.videoKey)].filter(Boolean))];
+  }
+
+  function materialAssetNames(item) {
+    const names = normalizedAssets(item).map((asset, index) => asset.name || asset.videoName || `成品 ${index + 1}`);
+    return names.length ? names.join("\n") : (item?.videoName || "");
+  }
+
+  function createAssetDraft(asset = {}) {
+    return {
+      id: asset.id || crypto.randomUUID(),
+      name: asset.name || asset.videoName || "",
+      videoKey: asset.videoKey || "",
+      videoName: asset.videoName || "",
+      cover: asset.cover || "",
+      file: null
+    };
+  }
+
+  function ensureAssetDrafts() {
+    if (!state.assetDrafts.length) state.assetDrafts = [createAssetDraft()];
+  }
+
+  function currentAssetMode() {
+    return document.querySelector('input[name="assetMode"]:checked')?.value || "single";
+  }
+
+  function setAssetMode(mode) {
+    const radio = document.querySelector(`input[name="assetMode"][value="${mode}"]`);
+    if (radio) radio.checked = true;
+  }
+
+  function readAssetDraftInputs() {
+    state.assetDrafts = state.assetDrafts.map((draft) => {
+      const name = document.querySelector(`[data-asset-name="${draft.id}"]`)?.value.trim();
+      return { ...draft, name: name ?? draft.name };
+    });
+  }
+
+  function renderAssetRows() {
+    const rows = $("#assetRows");
+    if (!rows) return;
+    ensureAssetDrafts();
+    const multiple = currentAssetMode() === "multiple";
+    if (!multiple && state.assetDrafts.length > 1) state.assetDrafts = [state.assetDrafts[0]];
+    $("#addAssetRow").classList.toggle("hidden", !multiple);
+    rows.innerHTML = state.assetDrafts.map((draft, index) => `
+      <div class="asset-row" data-asset-row="${escapeAttr(draft.id)}">
+        <label>成品名称
+          <input data-asset-name="${escapeAttr(draft.id)}" maxlength="120" autocomplete="off" value="${escapeAttr(draft.name || "")}" placeholder="${escapeAttr(index === 0 ? "默认使用素材标题" : `成品素材 ${index + 1}`)}" />
+        </label>
+        <div class="asset-drop-zone" data-asset-drop="${escapeAttr(draft.id)}" role="button" tabindex="0">
+          <input data-asset-file="${escapeAttr(draft.id)}" type="file" accept="video/*" hidden />
+          <strong>${escapeHtml(draft.file?.name || draft.videoName || "拖入视频或点击选择")}</strong>
+          <span>${draft.file ? "已选择新视频" : draft.videoKey ? "保留已上传视频，可重新选择替换" : "支持 MP4 / MOV 等视频格式"}</span>
+        </div>
+        ${multiple ? `<button class="icon-btn asset-remove" type="button" data-asset-remove="${escapeAttr(draft.id)}" title="删除这一条">×</button>` : ""}
+      </div>
+    `).join("");
+    rows.querySelectorAll("[data-asset-file]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const file = input.files[0];
+        if (file) setAssetDraftFile(input.dataset.assetFile, file);
+      });
+    });
+    rows.querySelectorAll("[data-asset-drop]").forEach((zone) => {
+      zone.addEventListener("click", () => zone.querySelector("input")?.click());
+      zone.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        zone.querySelector("input")?.click();
+      });
+      zone.addEventListener("dragover", (event) => {
+        event.preventDefault();
+        zone.classList.add("is-dragging");
+      });
+      zone.addEventListener("dragleave", () => zone.classList.remove("is-dragging"));
+      zone.addEventListener("drop", (event) => {
+        event.preventDefault();
+        zone.classList.remove("is-dragging");
+        const file = [...event.dataTransfer.files].find((entry) => entry.type.startsWith("video/"));
+        if (!file) {
+          alert("请拖入视频文件。");
+          return;
+        }
+        setAssetDraftFile(zone.dataset.assetDrop, file);
+      });
+    });
+    rows.querySelectorAll("[data-asset-remove]").forEach((button) => {
+      button.addEventListener("click", () => {
+        readAssetDraftInputs();
+        state.assetDrafts = state.assetDrafts.filter((draft) => draft.id !== button.dataset.assetRemove);
+        ensureAssetDrafts();
+        renderAssetRows();
+      });
+    });
+  }
+
+  function setAssetDraftFile(id, file) {
+    readAssetDraftInputs();
+    state.assetDrafts = state.assetDrafts.map((draft) => draft.id === id ? {
+      ...draft,
+      file,
+      videoName: file.name,
+      name: draft.name || file.name.replace(/\.[^.]+$/, "")
+    } : draft);
+    renderAssetRows();
+  }
+
+  async function saveAssetDrafts(materialId, editing) {
+    readAssetDraftInputs();
+    const baseTitle = $("#materialTitle").value.trim() || "成品素材";
+    const drafts = currentAssetMode() === "single" ? state.assetDrafts.slice(0, 1) : state.assetDrafts;
+    const saved = [];
+    for (const [index, draft] of drafts.entries()) {
+      if (!draft.file && !draft.videoKey && !draft.videoName && !draft.name) continue;
+      const file = draft.file;
+      const videoKey = file ? `asset-${materialId}-${draft.id}-${Date.now()}` : draft.videoKey;
+      const videoName = file?.name || draft.videoName || "";
+      const cover = file ? await captureVideoCover(file) : draft.cover;
+      if (file) await putFile(videoKey, file);
+      saved.push({
+        id: draft.id || crypto.randomUUID(),
+        name: draft.name || videoName || (drafts.length > 1 ? `${baseTitle}-${index + 1}` : baseTitle),
+        videoKey: videoKey || "",
+        videoName,
+        cover: cover || "",
+        createdAt: draft.createdAt || editing?.createdAt || Date.now()
+      });
+    }
+    if (!saved.length && editing) return normalizedAssets(editing);
+    return saved;
+  }
+
+  function renderMaterialAssets(item) {
+    const assets = normalizedAssets(item);
+    if (!assets.length) return `<div class="asset-summary muted">暂无成品视频</div>`;
+    return `
+      <div class="asset-summary">成品素材 ${assets.length} 条</div>
+      <div class="asset-chip-list">
+        ${assets.map((asset, index) => `
+          <button class="asset-chip" type="button" data-action="play-asset" data-asset-id="${escapeAttr(asset.id)}" title="${asset.videoKey ? "播放该成品" : "未上传视频"}">
+            ${escapeHtml(asset.name || asset.videoName || `成品 ${index + 1}`)}
+          </button>
+        `).join("")}
+      </div>
+    `;
   }
 
   async function syncMaterialsToFeishu(ids, options = {}) {
@@ -2638,7 +2875,7 @@
       "回收": progress.recovered ? "是" : "否",
       "验收": progress.recovered ? "已结束" : "进行中",
       "数据评分": item.rating ? `${item.rating}星` : "未评分",
-      "视频文件": item.videoKey ? (item.videoName || "已上传视频") : "无",
+      "视频文件": materialAssetNames(item) || "无",
       "数据截图": item.metricKey ? (item.metricName || "已上传截图") : "无",
       "更新时间": formatTime(item.updatedAt || Date.now())
     };
@@ -2684,7 +2921,9 @@
     $("#materialDate").value = item.date || toISODate(new Date());
     $("#materialBelongDate").value = getMaterialBelongDate(item);
     $("#materialRating").value = String(item.rating || 0);
-    $("#materialVideo").value = "";
+    state.assetDrafts = normalizedAssets(item).map(createAssetDraft);
+    setAssetMode(state.assetDrafts.length > 1 ? "multiple" : "single");
+    renderAssetRows();
     $("#materialMetric").value = "";
     $("#materialDialog").showModal();
   }
@@ -2695,6 +2934,9 @@
     $("#materialForm").reset();
     $("#materialRating").value = "0";
     $("#materialBelongDate").value = toISODate(new Date());
+    state.assetDrafts = [createAssetDraft()];
+    setAssetMode("single");
+    renderAssetRows();
     setScriptTypeRadio("AE脚本");
     setScriptStatusRadio("");
     $("#progressPassed").checked = false;

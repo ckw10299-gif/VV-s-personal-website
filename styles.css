@@ -1232,6 +1232,47 @@ h3 { font-size: 17px; }
   z-index: 1;
 }
 
+.dashboard-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 8px 12px 22px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dashboard-summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-summary h2 {
+  font-size: 18px;
+}
+
+.dashboard-summary > span {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(255, 216, 107, .45);
+  color: #7a4a00;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.dashboard-grid-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(230px, 1fr));
+  gap: 12px;
+}
+
+.dashboard-block {
+  min-width: 0;
+  border: 1px solid rgba(237, 220, 166, .74);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, .58);
+}
+
 .dashboard-controls {
   display: flex;
   align-items: center;
@@ -1255,6 +1296,10 @@ h3 { font-size: 17px; }
 
 .total-stats-grid {
   margin-bottom: 12px;
+}
+
+.compact-stats-grid {
+  grid-template-columns: repeat(3, minmax(70px, 1fr));
 }
 
 .vendor-summary {
@@ -1384,9 +1429,7 @@ h3 { font-size: 17px; }
 }
 
 .review-panel {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed rgba(164, 113, 27, .24);
+  margin-top: 0;
 }
 
 .review-select {
@@ -2753,6 +2796,101 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   width: auto;
 }
 
+.asset-upload-field {
+  gap: 12px;
+}
+
+.asset-rows {
+  display: grid;
+  gap: 10px;
+}
+
+.asset-row {
+  display: grid;
+  grid-template-columns: minmax(160px, .9fr) minmax(220px, 1.3fr) 38px;
+  gap: 10px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid rgba(237, 220, 166, .84);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .55);
+}
+
+.asset-row:not(:has(.asset-remove)) {
+  grid-template-columns: minmax(160px, .9fr) minmax(220px, 1.3fr);
+}
+
+.asset-drop-zone {
+  display: grid;
+  gap: 4px;
+  min-height: 62px;
+  padding: 12px;
+  border: 2px dashed rgba(242, 165, 31, .45);
+  border-radius: 14px;
+  background: rgba(255, 248, 221, .72);
+  color: #4b2a07;
+  cursor: pointer;
+  transition: .18s ease;
+}
+
+.asset-drop-zone:hover,
+.asset-drop-zone.is-dragging {
+  border-color: #f2a51f;
+  background: #fff0b8;
+  box-shadow: 0 0 0 4px rgba(242, 165, 31, .16);
+}
+
+.asset-drop-zone strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.asset-drop-zone span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.asset-add-btn {
+  width: fit-content;
+}
+
+.asset-summary {
+  margin-top: 8px;
+  color: #7a4a00;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.asset-summary.muted {
+  color: var(--muted);
+}
+
+.asset-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.asset-chip {
+  max-width: 100%;
+  border: 1px solid rgba(242, 165, 31, .35);
+  border-radius: 999px;
+  padding: 6px 9px;
+  background: rgba(255, 242, 194, .82);
+  color: #7a4a00;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.asset-remove {
+  align-self: center;
+}
+
 .memory-field {
   position: relative;
   z-index: 2;
@@ -2857,8 +2995,11 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   .week-overview-head { grid-template-columns: 1fr; }
   .week-summary-metrics { justify-content: flex-start; }
   .dashboard-controls { align-items: flex-start; flex-direction: column; }
+  .dashboard-grid-row { grid-template-columns: 1fr 1fr; }
   .stats-grid { grid-template-columns: 1fr; }
   .review-row { grid-template-columns: 1fr; }
+  .asset-row,
+  .asset-row:not(:has(.asset-remove)) { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 560px) {
@@ -2878,6 +3019,7 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   .project-slice-head,
   .script-type-head,
   .material-group-head { align-items: flex-start; flex-direction: column; }
+  .dashboard-grid-row { grid-template-columns: 1fr; }
   .month-controls { width: 100%; flex-direction: column; align-items: stretch; }
   .month-controls input, .month-controls select { width: 100%; }
 }
