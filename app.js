@@ -1267,6 +1267,7 @@
     initMaterialStatsControls();
     $("#materialForm").addEventListener("submit", async (event) => {
       event.preventDefault();
+      const form = event.currentTarget;
       const submit = event.submitter;
       submit.disabled = true;
       submit.textContent = "处理中...";
@@ -1278,7 +1279,7 @@
         const assets = await saveAssetDrafts(id, editing);
         const primaryAsset = assets[0] || null;
         if (metricFile) await putFile(metricKey, metricFile);
-        const formData = new FormData(event.currentTarget);
+        const formData = new FormData(form);
         const progress = {
           passed: $("#progressPassed").checked,
           pushed: $("#progressPushed").checked,
