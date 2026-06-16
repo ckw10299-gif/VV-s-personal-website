@@ -2032,6 +2032,9 @@
     grid.querySelectorAll("[data-action='play-asset']").forEach((button) => {
       button.addEventListener("click", () => playMaterial(button.closest(".material-card").dataset.id, button.dataset.assetId));
     });
+    grid.querySelectorAll("[data-action='delete-video']").forEach((button) => {
+      button.addEventListener("click", () => deleteMaterialVideos(button.closest(".material-card").dataset.id));
+    });
     grid.querySelectorAll("[data-action='edit']").forEach((button) => {
       button.addEventListener("click", () => openMaterialEditor(button.closest(".material-card").dataset.id));
     });
@@ -2126,6 +2129,7 @@
           <div class="metric-slot" id="metric-${item.id}"></div>
           <div class="card-actions">
             <label class="ghost-btn">更新数据截图<input data-action="metric" type="file" accept="image/*" hidden /></label>
+            ${hasPrimaryVideo ? `<button class="link-btn danger" data-action="delete-video">删除视频</button>` : ""}
             <button class="link-btn" data-action="edit">编辑</button>
             <button class="link-btn" data-action="delete">删除</button>
           </div>
@@ -2525,12 +2529,20 @@
     const item = state.materials.find((entry) => entry.id === id);
     if (!item) return;
     const asset = assetId ? normalizedAssets(item).find((entry) => entry.id === assetId) : normalizedAssets(item)[0];
-    const videoKey = asset?.videoKey || item.videoKey;
+    let videoKey = asset?.videoKey || item.videoKey;
     if (!videoKey) {
       alert("这条素材还没有上传视频。");
       return;
     }
-    const file = await getFile(videoKey);
+    let file = await getFile(videoKey);
+    if (!file) {
+      const repairedKey = await findCloudVideoKeyForMaterial(item.id);
+      if (repairedKey && repairedKey !== videoKey) {
+        videoKey = repairedKey;
+        file = await getFile(videoKey);
+        if (file) repairMaterialVideoKey(item.id, asset?.id, videoKey, file);
+      }
+    }
     if (!file) {
       alert("没有找到这个视频文件，可能是之前上传失败或云端文件已失效。请重新编辑这条素材并上传视频。");
       return;
@@ -2544,6 +2556,46 @@
     player.play().catch(() => {
       // Some browsers block autoplay after async cloud downloads; controls remain visible.
     });
+  }
+
+  async function findCloudVideoKeyForMaterial(materialId) {
+    if (!state.supabase || !state.user || !materialId) return "";
+    const prefix = `asset-${materialId}-`;
+    const { data, error } = await state.supabase.storage
+      .from("personal-assets")
+      .list(state.user.id, {
+        limit: 100,
+        search: prefix,
+        sortBy: { column: "updated_at", order: "desc" }
+      });
+    if (error || !Array.isArray(data)) return "";
+    const match = data.find((entry) => {
+      const type = entry?.metadata?.mimetype || entry?.metadata?.contentType || "";
+      return entry?.name?.startsWith(prefix) && (!type || String(type).startsWith("video/"));
+    });
+    return match?.name || "";
+  }
+
+  function repairMaterialVideoKey(id, assetId, videoKey, file) {
+    const item = state.materials.find((entry) => entry.id === id);
+    if (!item || !videoKey) return;
+    const fileName = file?.name || item.videoName || "";
+    const assets = normalizedAssets(item);
+    const targetAssetId = assetId || assets[0]?.id || "primary";
+    const nextAssets = assets.length
+      ? assets.map((asset, index) => {
+          const shouldRepair = asset.id === targetAssetId || (!assetId && index === 0);
+          return shouldRepair ? { ...asset, videoKey, videoName: asset.videoName || fileName } : asset;
+        })
+      : [{ id: "primary", name: item.title || "成品素材", videoKey, videoName: fileName, cover: item.cover || "", createdAt: item.createdAt || Date.now() }];
+    state.materials = state.materials.map((entry) => entry.id === id ? {
+      ...entry,
+      assets: nextAssets,
+      videoKey: nextAssets[0]?.videoKey || videoKey,
+      videoName: nextAssets[0]?.videoName || fileName,
+      updatedAt: Date.now()
+    } : entry);
+    save("pm.materials", state.materials);
   }
 
   function normalizedTags(item) {
@@ -2602,6 +2654,38 @@
   function materialAssetNames(item) {
     const names = normalizedAssets(item).map((asset, index) => asset.name || asset.videoName || `成品 ${index + 1}`);
     return names.length ? names.join("\n") : (item?.videoName || "");
+  }
+
+  async function deleteMaterialVideos(id) {
+    const item = state.materials.find((entry) => entry.id === id);
+    if (!item) return;
+    const keys = materialVideoKeys(item);
+    if (!keys.length) {
+      alert("这条素材没有可删除的视频。");
+      return;
+    }
+    if (!confirm("确定删除这条素材已上传的视频吗？素材标题、标签、脚本链接等信息都会保留。")) return;
+    for (const key of keys) await deleteFile(key);
+    state.materials = state.materials.map((entry) => {
+      if (entry.id !== id) return entry;
+      const assets = normalizedAssets(entry).map((asset) => ({
+        ...asset,
+        videoKey: "",
+        videoName: "",
+        cover: ""
+      }));
+      return {
+        ...entry,
+        assets,
+        videoKey: "",
+        videoName: "",
+        cover: createPlaceholderCover(entry.title),
+        updatedAt: Date.now()
+      };
+    });
+    save("pm.materials", state.materials);
+    renderMaterials();
+    syncMaterialsToFeishu([id]);
   }
 
   function createAssetDraft(asset = {}) {
@@ -2758,11 +2842,12 @@
 
   function renderMaterialAssets(item) {
     const assets = normalizedAssets(item);
-    if (!assets.length) return `<div class="asset-summary muted">暂无成品视频</div>`;
+    const videoAssets = assets.filter((asset) => asset.videoKey);
+    if (!videoAssets.length) return `<div class="asset-summary muted">暂无成品视频</div>`;
     return `
-      <button class="asset-summary asset-summary-button" type="button" data-action="play">成品素材 ${assets.length} 条</button>
+      <button class="asset-summary asset-summary-button" type="button" data-action="play">成品素材 ${videoAssets.length} 条</button>
       <div class="asset-chip-list">
-        ${assets.map((asset, index) => `
+        ${videoAssets.map((asset, index) => `
           <button class="asset-chip" type="button" data-action="play-asset" data-asset-id="${escapeAttr(asset.id)}" title="${asset.videoKey ? "播放该成品" : "未上传视频"}">
             ${escapeHtml(asset.name || asset.videoName || `成品 ${index + 1}`)}
           </button>

@@ -1261,7 +1261,7 @@ h3 { font-size: 17px; }
 
 .dashboard-grid-row {
   display: grid;
-  grid-template-columns: repeat(4, minmax(230px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -1296,10 +1296,11 @@ h3 { font-size: 17px; }
 
 .total-stats-grid {
   margin-bottom: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .compact-stats-grid {
-  grid-template-columns: repeat(3, minmax(70px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .vendor-summary {
