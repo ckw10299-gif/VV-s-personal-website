@@ -8,6 +8,8 @@
   const LOCAL_DATA_LOCK_KEY = "pm.localDataLocked";
   const TUS_CLIENT_URL = "tus.min.js?v=20260615-tus-all";
   const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
+  const SUPABASE_FREE_FILE_LIMIT = 50 * 1000 * 1000;
+  const VIDEO_UPLOAD_TARGET_LIMIT = 10 * 1000 * 1000;
   const FALLBACK_SUPABASE_CONFIG = {
     url: "https://mcqmltqlqvljpteqvpje.supabase.co",
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcW1sdHFscXZsanB0ZXF2cGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDg5MDUsImV4cCI6MjA5NTQ4NDkwNX0.Bu_W_KzNIH0uMd7IgA3NTX1wN9B0LPDbkJrSgK1hSIs"
@@ -1274,6 +1276,7 @@
       try {
         const editing = state.materials.find((item) => item.id === state.editingMaterialId);
         const metricFile = $("#materialMetric").files[0];
+        if (metricFile) assertCloudUploadable(metricFile);
         const id = editing?.id || crypto.randomUUID();
         const metricKey = metricFile ? `metric-${id}-${Date.now()}` : editing?.metricKey || "";
         const assets = await saveAssetDrafts(id, editing);
@@ -2523,12 +2526,24 @@
     if (!item) return;
     const asset = assetId ? normalizedAssets(item).find((entry) => entry.id === assetId) : normalizedAssets(item)[0];
     const videoKey = asset?.videoKey || item.videoKey;
-    if (!videoKey) return;
+    if (!videoKey) {
+      alert("这条素材还没有上传视频。");
+      return;
+    }
     const file = await getFile(videoKey);
-    if (!file) return;
+    if (!file) {
+      alert("没有找到这个视频文件，可能是之前上传失败或云端文件已失效。请重新编辑这条素材并上传视频。");
+      return;
+    }
+    const player = $("#videoPlayer");
     $("#videoTitle").textContent = asset?.name || item.title;
-    $("#videoPlayer").src = URL.createObjectURL(file);
+    if (player.src) URL.revokeObjectURL(player.src);
+    player.src = URL.createObjectURL(file);
+    player.load();
     $("#videoDialog").showModal();
+    player.play().catch(() => {
+      // Some browsers block autoplay after async cloud downloads; controls remain visible.
+    });
   }
 
   function normalizedTags(item) {
@@ -2726,7 +2741,8 @@
       const videoKey = file ? `asset-${materialId}-${draft.id}-${Date.now()}` : draft.videoKey;
       const videoName = file?.name || draft.videoName || "";
       const cover = file ? await captureVideoCover(file) : draft.cover;
-      if (file) await putFile(videoKey, file);
+      const uploadFile = file ? await prepareVideoUploadFile(file) : null;
+      if (uploadFile) await putFile(videoKey, uploadFile);
       saved.push({
         id: draft.id || crypto.randomUUID(),
         name: draft.name || videoName || (drafts.length > 1 ? `${baseTitle}-${index + 1}` : baseTitle),
@@ -2744,7 +2760,7 @@
     const assets = normalizedAssets(item);
     if (!assets.length) return `<div class="asset-summary muted">暂无成品视频</div>`;
     return `
-      <div class="asset-summary">成品素材 ${assets.length} 条</div>
+      <button class="asset-summary asset-summary-button" type="button" data-action="play">成品素材 ${assets.length} 条</button>
       <div class="asset-chip-list">
         ${assets.map((asset, index) => `
           <button class="asset-chip" type="button" data-action="play-asset" data-asset-id="${escapeAttr(asset.id)}" title="${asset.videoKey ? "播放该成品" : "未上传视频"}">
@@ -3416,7 +3432,196 @@
     return `${state.user.id}/${key}`;
   }
 
+  function formatFileSize(bytes) {
+    const size = Number(bytes) || 0;
+    if (size >= 1000 * 1000) return `${(size / (1000 * 1000)).toFixed(1)}MB`;
+    if (size >= 1000) return `${(size / 1000).toFixed(1)}KB`;
+    return `${size}B`;
+  }
+
+  function assertCloudUploadable(file) {
+    if (!state.supabase || !state.user || !file) return;
+    if (file.size <= SUPABASE_FREE_FILE_LIMIT) return;
+    throw new Error(`文件「${file.name}」大小为 ${formatFileSize(file.size)}，超过 Supabase 免费版单文件 50MB 上限。请先压缩视频，或把视频放到网盘/飞书后在“素材存放地址”里粘贴链接。`);
+  }
+
+  async function prepareVideoUploadFile(file) {
+    if (!file || !state.supabase || !state.user || !isVideoFile(file)) return file;
+    if (file.size <= VIDEO_UPLOAD_TARGET_LIMIT) return file;
+    const compressed = await compressVideoForUpload(file, VIDEO_UPLOAD_TARGET_LIMIT);
+    if (compressed.size > VIDEO_UPLOAD_TARGET_LIMIT) {
+      throw new Error(`文件「${file.name}」自动压缩后仍为 ${formatFileSize(compressed.size)}，超过 10MB。建议先裁短视频，或把原视频放到网盘/飞书后填写“素材存放地址”。`);
+    }
+    return compressed;
+  }
+
+  function supportedRecordingMimeType() {
+    if (!window.MediaRecorder) return "";
+    return [
+      "video/webm;codecs=vp9",
+      "video/webm;codecs=vp8",
+      "video/webm"
+    ].find((type) => MediaRecorder.isTypeSupported(type)) || "";
+  }
+
+  function compressedVideoName(file) {
+    const baseName = (file.name || "video").replace(/\.[^.]+$/, "");
+    return `${baseName}-compressed.webm`;
+  }
+
+  function evenDimension(value) {
+    return Math.max(2, Math.round(value / 2) * 2);
+  }
+
+  function clampNumber(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function waitForEvent(target, eventName, timeout = 8000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error(`等待 ${eventName} 超时`));
+      }, timeout);
+      const cleanup = () => {
+        clearTimeout(timer);
+        target.removeEventListener(eventName, onEvent);
+        target.removeEventListener("error", onError);
+      };
+      const onEvent = () => {
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        cleanup();
+        reject(new Error("视频读取失败，无法自动压缩。"));
+      };
+      target.addEventListener(eventName, onEvent, { once: true });
+      target.addEventListener("error", onError, { once: true });
+    });
+  }
+
+  function compressionAttempts(file, meta, targetBytes) {
+    const duration = Math.max(1, meta.duration || 1);
+    const baseBitrate = Math.floor((targetBytes * 8 * 0.82) / duration);
+    return [
+      { maxSide: 720, fps: 24, bitrate: clampNumber(baseBitrate, 220000, 1600000) },
+      { maxSide: 540, fps: 20, bitrate: clampNumber(Math.floor(baseBitrate * 0.72), 160000, 1000000) },
+      { maxSide: 420, fps: 16, bitrate: clampNumber(Math.floor(baseBitrate * 0.52), 120000, 720000) },
+      { maxSide: 320, fps: 12, bitrate: clampNumber(Math.floor(baseBitrate * 0.36), 90000, 460000) }
+    ];
+  }
+
+  async function compressVideoForUpload(file, targetBytes) {
+    const mimeType = supportedRecordingMimeType();
+    if (!mimeType || !HTMLCanvasElement.prototype.captureStream) {
+      throw new Error("当前浏览器不支持网页内自动压缩视频，请换 Chrome / Edge 后重试。");
+    }
+
+    const sourceUrl = URL.createObjectURL(file);
+    const video = document.createElement("video");
+    video.src = sourceUrl;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.crossOrigin = "anonymous";
+    await waitForEvent(video, "loadedmetadata");
+
+    const meta = {
+      width: video.videoWidth || 720,
+      height: video.videoHeight || 1280,
+      duration: Number.isFinite(video.duration) ? video.duration : 30
+    };
+    let bestBlob = null;
+
+    try {
+      for (const attempt of compressionAttempts(file, meta, targetBytes)) {
+        const blob = await recordCompressedVideo(video, meta, attempt, mimeType);
+        if (!bestBlob || blob.size < bestBlob.size) bestBlob = blob;
+        if (blob.size <= targetBytes) break;
+      }
+    } finally {
+      video.pause();
+      video.removeAttribute("src");
+      URL.revokeObjectURL(sourceUrl);
+    }
+
+    if (!bestBlob) throw new Error("视频自动压缩失败，请稍后重试。");
+    return new File([bestBlob], compressedVideoName(file), {
+      type: bestBlob.type || "video/webm",
+      lastModified: Date.now()
+    });
+  }
+
+  async function recordCompressedVideo(video, meta, attempt, mimeType) {
+    const scale = Math.min(1, attempt.maxSide / Math.max(meta.width, meta.height));
+    const width = evenDimension(meta.width * scale);
+    const height = evenDimension(meta.height * scale);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    const stream = canvas.captureStream(attempt.fps);
+    const chunks = [];
+    let frameHandle = 0;
+
+    const drawFrame = () => {
+      if (video.ended || video.paused) return;
+      ctx.drawImage(video, 0, 0, width, height);
+      frameHandle = requestAnimationFrame(drawFrame);
+    };
+
+    return new Promise((resolve, reject) => {
+      let stopped = false;
+      const cleanup = () => {
+        if (frameHandle) cancelAnimationFrame(frameHandle);
+        stream.getTracks().forEach((track) => track.stop());
+        video.removeEventListener("ended", stopRecording);
+        video.removeEventListener("error", failRecording);
+      };
+      const stopRecording = () => {
+        if (stopped) return;
+        stopped = true;
+        if (recorder.state !== "inactive") recorder.stop();
+      };
+      const failRecording = () => {
+        cleanup();
+        reject(new Error("视频自动压缩中断，请重试。"));
+      };
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: attempt.bitrate
+      });
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) chunks.push(event.data);
+      };
+      recorder.onerror = failRecording;
+      recorder.onstop = () => {
+        cleanup();
+        resolve(new Blob(chunks, { type: mimeType }));
+      };
+      video.addEventListener("ended", stopRecording, { once: true });
+      video.addEventListener("error", failRecording, { once: true });
+
+      recorder.start(1000);
+      Promise.resolve()
+        .then(async () => {
+          video.pause();
+          video.currentTime = 0;
+          await new Promise((resolveSeek) => setTimeout(resolveSeek, 120));
+          ctx.drawImage(video, 0, 0, width, height);
+          await video.play();
+          drawFrame();
+        })
+        .catch((error) => {
+          cleanup();
+          reject(error);
+        });
+    });
+  }
+
   async function putCloudFile(key, file) {
+    assertCloudUploadable(file);
     return putCloudFileResumable(key, file);
   }
 
