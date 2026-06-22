@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   const DB_NAME = "personal-manager-mvp";
   const STORE = "files";
   const LOCAL_BACKUP_KEY = "pm.localBackupSnapshot";
@@ -2277,15 +2277,26 @@
       .sort((a, b) => a.localeCompare(b, "zh-CN"));
   }
 
+  function sortedWeekOptions() {
+    const weekMap = new Map();
+    const addWeek = (dateValue) => {
+      const label = getWeekRangeLabel(dateValue);
+      const startTime = getWeekStartTime(dateValue);
+      weekMap.set(label, Math.max(weekMap.get(label) || 0, startTime));
+    };
+    addWeek(toISODate(new Date()));
+    state.materials.forEach((item) => addWeek(getMaterialBelongDate(item)));
+    return [...weekMap.entries()]
+      .sort(([, timeA], [, timeB]) => timeB - timeA)
+      .map(([label]) => [label, label]);
+  }
+
   function renderMaterialFilterOptions() {
     const monthOptions = uniqueValues([
       getMonthLabel(toISODate(new Date())),
       ...state.materials.map(getMaterialMonthLabel)
     ]).map((value) => [value, value]);
-    const weekOptions = uniqueValues([
-      getWeekRangeLabel(toISODate(new Date())),
-      ...state.materials.map(getMaterialWeekLabel)
-    ]).map((value) => [value, value]);
+    const weekOptions = sortedWeekOptions();
     if (!state.statsMonth || !monthOptions.some(([value]) => value === state.statsMonth)) {
       state.statsMonth = monthOptions[0]?.[0] || getMonthLabel(toISODate(new Date()));
     }
@@ -2507,6 +2518,15 @@
     return ["AE脚本", "UE脚本", "真人脚本"].indexOf(type) >= 0
       ? ["AE脚本", "UE脚本", "真人脚本"].indexOf(type)
       : 99;
+  }
+
+  function getWeekStartTime(dateValue) {
+    const date = parseISODate(dateValue || toISODate(new Date()));
+    const day = (date.getDay() + 6) % 7;
+    const start = new Date(date);
+    start.setDate(date.getDate() - day);
+    start.setHours(0, 0, 0, 0);
+    return start.getTime();
   }
 
   function getWeekRangeLabel(dateValue) {
@@ -3690,3 +3710,5 @@
     return escapeHtml(value).replace(/`/g, "&#096;");
   }
 })();
+
+
