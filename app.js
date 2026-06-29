@@ -2167,27 +2167,33 @@
   function renderMaterialStats() {
     const allApproved = state.materials.filter((item) => isScriptApproved(item.scriptStatus)).length;
     const allRejected = state.materials.filter((item) => isScriptRejected(item.scriptStatus)).length;
+    const allAccepted = state.materials.filter((item) => normalizeProgress(item.progress).recovered).length;
     $("#allScriptCount").textContent = state.materials.length;
     $("#allApprovedScriptCount").textContent = allApproved;
     $("#allRejectedScriptCount").textContent = allRejected;
+    $("#allAcceptedMaterialCount").textContent = allAccepted;
     renderVendorList("#allVendorList", state.materials);
     $("#allVendorSummaryCount").textContent = `${vendorRows(state.materials).length} 个供应商`;
 
     const monthly = state.materials.filter((item) => getMaterialMonthLabel(item) === state.statsMonth);
     const monthlyApproved = monthly.filter((item) => isScriptApproved(item.scriptStatus)).length;
     const monthlyRejected = monthly.filter((item) => isScriptRejected(item.scriptStatus)).length;
+    const monthlyAccepted = monthly.filter((item) => normalizeProgress(item.progress).recovered).length;
     $("#monthlyScriptCount").textContent = monthly.length;
     $("#monthlyApprovedScriptCount").textContent = monthlyApproved;
     $("#monthlyRejectedScriptCount").textContent = monthlyRejected;
+    $("#monthlyAcceptedMaterialCount").textContent = monthlyAccepted;
     $("#monthlyPassRate").textContent = `${monthly.length ? Math.round((monthlyApproved / monthly.length) * 100) : 0}%`;
     renderVendorList("#monthlyVendorList", monthly);
 
     const weekly = state.materials.filter((item) => getMaterialWeekLabel(item) === state.statsWeek);
     const approved = weekly.filter((item) => isScriptApproved(item.scriptStatus)).length;
     const rejected = weekly.filter((item) => isScriptRejected(item.scriptStatus)).length;
+    const weeklyAccepted = weekly.filter((item) => normalizeProgress(item.progress).recovered).length;
     $("#approvedScriptCount").textContent = approved;
     $("#totalScriptCount").textContent = weekly.length;
     $("#rejectedScriptCount").textContent = rejected;
+    $("#weeklyAcceptedMaterialCount").textContent = weeklyAccepted;
     $("#weeklyPassRate").textContent = `${weekly.length ? Math.round((approved / weekly.length) * 100) : 0}%`;
     renderVendorList("#weeklyVendorList", weekly);
     renderMaterialReview();

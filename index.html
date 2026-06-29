@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260622-dashboard-week-order" />
+    <link rel="stylesheet" href="styles.css?v=20260629-accepted-count" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -178,6 +178,11 @@
                     <strong id="allRejectedScriptCount">0</strong>
                     <small>脚本状态为不通过</small>
                   </article>
+                  <article class="stat-card accepted">
+                    <span>已验收素材</span>
+                    <strong id="allAcceptedMaterialCount">0</strong>
+                    <small>回收进度已完成</small>
+                  </article>
                 </div>
                 <details class="vendor-summary" id="allVendorSummary">
                   <summary>供应商分布 <span id="allVendorSummaryCount">0 个供应商</span></summary>
@@ -198,6 +203,7 @@
                   <article class="stat-card total"><span>产出</span><strong id="monthlyScriptCount">0</strong><small>所选月</small></article>
                   <article class="stat-card approved"><span>通过</span><strong id="monthlyApprovedScriptCount">0</strong><small id="monthlyPassRate">0%</small></article>
                   <article class="stat-card rejected"><span>未通过</span><strong id="monthlyRejectedScriptCount">0</strong><small>脚本状态</small></article>
+                  <article class="stat-card accepted"><span>已验收</span><strong id="monthlyAcceptedMaterialCount">0</strong><small>回收完成</small></article>
                 </div>
                 <div class="weekly-vendor-panel compact-vendor-panel">
                   <h3>所选月供应商分布</h3>
@@ -218,6 +224,7 @@
                   <article class="stat-card total"><span>产出</span><strong id="totalScriptCount">0</strong><small>所选周</small></article>
                   <article class="stat-card approved"><span>通过</span><strong id="approvedScriptCount">0</strong><small id="weeklyPassRate">0%</small></article>
                   <article class="stat-card rejected"><span>未通过</span><strong id="rejectedScriptCount">0</strong><small>脚本状态</small></article>
+                  <article class="stat-card accepted"><span>已验收</span><strong id="weeklyAcceptedMaterialCount">0</strong><small>回收完成</small></article>
                 </div>
                 <div class="weekly-vendor-panel compact-vendor-panel">
                   <h3>所选周供应商分布</h3>
@@ -551,7 +558,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260622-dashboard-week-order"></script>
+    <script src="app.js?v=20260629-accepted-count"></script>
   </body>
 </html>
 
