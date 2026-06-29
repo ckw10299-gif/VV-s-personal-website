@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260629-accepted-count" />
+    <link rel="stylesheet" href="styles.css?v=20260629-overview-rates" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -184,6 +184,10 @@
                     <small>回收进度已完成</small>
                   </article>
                 </div>
+                <div class="stats-rate-strip">
+                  <div class="stats-rate-item pass-rate"><span>通过率</span><strong id="allPassRate">0%</strong></div>
+                  <div class="stats-rate-item acceptance-rate"><span>验收率</span><strong id="allAcceptanceRate">0%</strong></div>
+                </div>
                 <details class="vendor-summary" id="allVendorSummary">
                   <summary>供应商分布 <span id="allVendorSummaryCount">0 个供应商</span></summary>
                   <div class="vendor-list" id="allVendorList"></div>
@@ -205,6 +209,10 @@
                   <article class="stat-card rejected"><span>未通过</span><strong id="monthlyRejectedScriptCount">0</strong><small>脚本状态</small></article>
                   <article class="stat-card accepted"><span>已验收</span><strong id="monthlyAcceptedMaterialCount">0</strong><small>回收完成</small></article>
                 </div>
+                <div class="stats-rate-strip">
+                  <div class="stats-rate-item pass-rate"><span>通过率</span><strong id="monthlyOverviewPassRate">0%</strong></div>
+                  <div class="stats-rate-item acceptance-rate"><span>验收率</span><strong id="monthlyAcceptanceRate">0%</strong></div>
+                </div>
                 <div class="weekly-vendor-panel compact-vendor-panel">
                   <h3>所选月供应商分布</h3>
                   <div class="vendor-list" id="monthlyVendorList"></div>
@@ -225,6 +233,10 @@
                   <article class="stat-card approved"><span>通过</span><strong id="approvedScriptCount">0</strong><small id="weeklyPassRate">0%</small></article>
                   <article class="stat-card rejected"><span>未通过</span><strong id="rejectedScriptCount">0</strong><small>脚本状态</small></article>
                   <article class="stat-card accepted"><span>已验收</span><strong id="weeklyAcceptedMaterialCount">0</strong><small>回收完成</small></article>
+                </div>
+                <div class="stats-rate-strip">
+                  <div class="stats-rate-item pass-rate"><span>通过率</span><strong id="weeklyOverviewPassRate">0%</strong></div>
+                  <div class="stats-rate-item acceptance-rate"><span>验收率</span><strong id="weeklyAcceptanceRate">0%</strong></div>
                 </div>
                 <div class="weekly-vendor-panel compact-vendor-panel">
                   <h3>所选周供应商分布</h3>
@@ -558,7 +570,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260629-feishu-sync-fix"></script>
+    <script src="app.js?v=20260629-overview-rates"></script>
   </body>
 </html>
 

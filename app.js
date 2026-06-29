@@ -2172,6 +2172,8 @@
     $("#allApprovedScriptCount").textContent = allApproved;
     $("#allRejectedScriptCount").textContent = allRejected;
     $("#allAcceptedMaterialCount").textContent = allAccepted;
+    $("#allPassRate").textContent = formatRate(allApproved, state.materials.length);
+    $("#allAcceptanceRate").textContent = formatRate(allAccepted, allApproved);
     renderVendorList("#allVendorList", state.materials);
     $("#allVendorSummaryCount").textContent = `${vendorRows(state.materials).length} 个供应商`;
 
@@ -2184,6 +2186,8 @@
     $("#monthlyRejectedScriptCount").textContent = monthlyRejected;
     $("#monthlyAcceptedMaterialCount").textContent = monthlyAccepted;
     $("#monthlyPassRate").textContent = `${monthly.length ? Math.round((monthlyApproved / monthly.length) * 100) : 0}%`;
+    $("#monthlyOverviewPassRate").textContent = formatRate(monthlyApproved, monthly.length);
+    $("#monthlyAcceptanceRate").textContent = formatRate(monthlyAccepted, monthlyApproved);
     renderVendorList("#monthlyVendorList", monthly);
 
     const weekly = state.materials.filter((item) => getMaterialWeekLabel(item) === state.statsWeek);
@@ -2195,8 +2199,14 @@
     $("#rejectedScriptCount").textContent = rejected;
     $("#weeklyAcceptedMaterialCount").textContent = weeklyAccepted;
     $("#weeklyPassRate").textContent = `${weekly.length ? Math.round((approved / weekly.length) * 100) : 0}%`;
+    $("#weeklyOverviewPassRate").textContent = formatRate(approved, weekly.length);
+    $("#weeklyAcceptanceRate").textContent = formatRate(weeklyAccepted, approved);
     renderVendorList("#weeklyVendorList", weekly);
     renderMaterialReview();
+  }
+
+  function formatRate(numerator, denominator) {
+    return `${denominator ? Math.round((numerator / denominator) * 100) : 0}%`;
   }
 
   function vendorRows(materials) {

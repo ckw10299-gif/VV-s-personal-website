@@ -1403,6 +1403,38 @@ h3 { font-size: 17px; }
   padding: 9px 8px;
 }
 
+.stats-rate-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 8px 0 12px;
+}
+
+.stats-rate-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border: 1px solid #c9dfca;
+  border-radius: 10px;
+  background: #f1faed;
+  color: #296a48;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.stats-rate-item.acceptance-rate {
+  border-color: #b9d9ed;
+  background: #eef8ff;
+  color: #24658e;
+}
+
+.stats-rate-item strong {
+  font-size: 16px;
+}
+
 .stat-card {
   min-width: 0;
   padding: 10px 12px;
