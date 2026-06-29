@@ -2906,7 +2906,7 @@
             fields: buildFeishuMaterialFields(item)
           }
         });
-        if (error) throw error;
+        if (error) throw new Error(await readFunctionError(error, "飞书同步失败"));
         if (!data?.ok) throw new Error(data?.message || "飞书同步失败");
         setFeishuSyncState([id], {
           feishuRecordId: data.recordId || item.feishuRecordId || "",
@@ -2949,7 +2949,7 @@
           }))
         }
       });
-      if (error) throw error;
+      if (error) throw new Error(await readFunctionError(error, "飞书批量同步失败"));
       if (!data?.ok) throw new Error(data?.message || "飞书批量同步失败");
       const results = Array.isArray(data.results) ? data.results : [];
       const resultMap = new Map(results.map((result) => [result.localId, result]));
@@ -2990,6 +2990,19 @@
     state.materials = state.materials.map((item) => ids.includes(item.id) ? { ...item, ...patch } : item);
     save("pm.materials", state.materials);
     if (options.render !== false) renderMaterials();
+  }
+
+  async function readFunctionError(error, fallback) {
+    let message = error?.message || fallback;
+    const response = error?.context;
+    if (!response) return message;
+    try {
+      const payload = await (typeof response.clone === "function" ? response.clone() : response).json();
+      message = payload?.message || payload?.error || message;
+    } catch (_) {
+      // Keep the SDK message when the Edge Function response has no JSON body.
+    }
+    return message;
   }
 
   function deleteMaterialFromFeishu(item) {
