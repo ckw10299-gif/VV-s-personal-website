@@ -72,6 +72,7 @@
     materialFilters: {
       week: "",
       scriptType: "",
+      vendor: "",
       scriptStatus: "",
       progress: "",
       tagOne: "",
@@ -85,6 +86,7 @@
     return {
       week: "include",
       scriptType: "include",
+      vendor: "include",
       scriptStatus: "include",
       progress: "include",
       tagOne: "include",
@@ -1362,6 +1364,7 @@
     [
       ["filterWeek", "week"],
       ["filterScriptType", "scriptType"],
+      ["filterVendor", "vendor"],
       ["filterScriptStatus", "scriptStatus"],
       ["filterProgress", "progress"],
       ["filterTagOne", "tagOne"],
@@ -1382,7 +1385,7 @@
     $("#clearMaterialFilters").addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      state.materialFilters = { week: "", scriptType: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
+      state.materialFilters = { week: "", scriptType: "", vendor: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
       state.materialFilterModes = defaultMaterialFilterModes();
       updateMaterialFilterModeControls();
       renderMaterials();
@@ -2329,6 +2332,10 @@
       ["UE脚本", "UE脚本"],
       ["真人脚本", "真人脚本"]
     ], state.materialFilters.scriptType);
+    fillSelect("#filterVendor", [
+      ["", "全部供应商"],
+      ...uniqueValues(state.materials.map((item) => item.vendor || "未填写供应商")).map((value) => [value, value])
+    ], state.materialFilters.vendor);
     fillSelect("#filterScriptStatus", [
       ["", "全部脚本状态"],
       ["approved", "通过"],
@@ -2364,12 +2371,14 @@
       const progressMatch = progress[filters.progress] === true;
       const weekMatch = getMaterialWeekLabel(item) === filters.week;
       const scriptTypeMatch = normalizedScriptType(item) === filters.scriptType;
+      const vendorMatch = (item.vendor || "未填写供应商") === filters.vendor;
       const scriptStatusMatch = (filters.scriptStatus === "approved" && isScriptApproved(item.scriptStatus))
         || (filters.scriptStatus === "rejected" && isScriptRejected(item.scriptStatus))
         || (filters.scriptStatus === "unset" && !isScriptApproved(item.scriptStatus) && !isScriptRejected(item.scriptStatus));
       return filterByMode(filters.progress, progressMatch, "progress")
         && filterByMode(filters.week, weekMatch, "week")
         && filterByMode(filters.scriptType, scriptTypeMatch, "scriptType")
+        && filterByMode(filters.vendor, vendorMatch, "vendor")
         && filterByMode(filters.scriptStatus, scriptStatusMatch, "scriptStatus")
         && filterByMode(filters.tagOne, tags[0] === filters.tagOne, "tagOne")
         && filterByMode(filters.tagTwo, tags[1] === filters.tagTwo, "tagTwo")

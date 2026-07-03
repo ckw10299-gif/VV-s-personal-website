@@ -294,6 +294,15 @@
                   </select>
                 </span>
               </label>
+              <label class="filter-control">供应商
+                <span class="filter-pair">
+                  <select id="filterVendor"></select>
+                  <select class="filter-mode" data-filter-mode="vendor" title="筛选模式">
+                    <option value="include">包含</option>
+                    <option value="exclude">排除</option>
+                  </select>
+                </span>
+              </label>
               <label class="filter-control">第一标签
                 <span class="filter-pair">
                   <select id="filterTagOne"></select>
@@ -570,7 +579,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260629-overview-rates"></script>
+    <script src="app.js?v=20260703-vendor-filter"></script>
   </body>
 </html>
 
