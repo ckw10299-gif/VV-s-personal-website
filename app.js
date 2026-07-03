@@ -70,6 +70,7 @@
       tagThree: []
     })),
     materialFilters: {
+      title: "",
       week: "",
       scriptType: "",
       vendor: "",
@@ -367,7 +368,7 @@
     state.ideas = [];
     state.docs = [];
     state.memory = normalizeMemory({});
-    state.materialFilters = { week: "", scriptType: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
+    state.materialFilters = { title: "", week: "", scriptType: "", vendor: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
     state.materialFilterModes = defaultMaterialFilterModes();
     state.reviewWeek = "";
     state.statsMonth = getMonthLabel(toISODate(new Date()));
@@ -1361,6 +1362,10 @@
   }
 
   function bindMaterialFilters() {
+    $("#filterMaterialTitle").addEventListener("input", (event) => {
+      state.materialFilters.title = event.target.value;
+      renderMaterials();
+    });
     [
       ["filterWeek", "week"],
       ["filterScriptType", "scriptType"],
@@ -1385,7 +1390,8 @@
     $("#clearMaterialFilters").addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      state.materialFilters = { week: "", scriptType: "", vendor: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
+      state.materialFilters = { title: "", week: "", scriptType: "", vendor: "", scriptStatus: "", progress: "", tagOne: "", tagTwo: "", tagThree: "" };
+      $("#filterMaterialTitle").value = "";
       state.materialFilterModes = defaultMaterialFilterModes();
       updateMaterialFilterModeControls();
       renderMaterials();
@@ -1977,8 +1983,25 @@
     const filtered = getFilteredMaterials();
     $("#materialEmpty").style.display = filtered.length ? "none" : "block";
     $("#materialEmpty").textContent = state.materials.length ? "没有符合筛选条件的素材。" : "还没有素材，先上传一条视频素材。";
-    const weekGroups = groupMaterialsByWeek(filtered);
-    grid.innerHTML = weekGroups.map(({ week, items, projectGroups }) => `
+    const hasActiveFilters = Object.entries(state.materialFilters)
+      .some(([key, value]) => key === "title" ? Boolean(String(value || "").trim()) : Boolean(value));
+    if (hasActiveFilters && filtered.length) {
+      grid.innerHTML = `
+        <section class="filtered-material-view">
+          <div class="filtered-result-head">
+            <h3>筛选结果</h3>
+            <span>共 ${filtered.length} 条素材</span>
+          </div>
+          <div class="material-group-grid">
+            ${filtered.map(renderMaterialCard).join("")}
+          </div>
+        </section>
+      `;
+    } else if (hasActiveFilters) {
+      grid.innerHTML = "";
+    } else {
+      const weekGroups = groupMaterialsByWeek(filtered);
+      grid.innerHTML = weekGroups.map(({ week, items, projectGroups }) => `
       <details class="week-overview" data-open-key="${escapeAttr(materialOpenKey("week", week))}" ${detailOpenAttr(materialOpenKey("week", week), false)}>
         <summary class="week-overview-head">
           <div class="week-title-block">
@@ -2019,7 +2042,8 @@
           `).join("")}
         </div>
       </details>
-    `).join("");
+      `).join("");
+    }
 
     state.materials.forEach(async (item) => {
       if (!item.metricKey) return;
@@ -2368,6 +2392,8 @@
       const tags = normalizedTags(item);
       const filters = state.materialFilters;
       const progress = normalizeProgress(item.progress);
+      const titleQuery = String(filters.title || "").trim().toLocaleLowerCase("zh-CN");
+      const titleMatch = !titleQuery || String(item.title || "").toLocaleLowerCase("zh-CN").includes(titleQuery);
       const progressMatch = progress[filters.progress] === true;
       const weekMatch = getMaterialWeekLabel(item) === filters.week;
       const scriptTypeMatch = normalizedScriptType(item) === filters.scriptType;
@@ -2375,7 +2401,8 @@
       const scriptStatusMatch = (filters.scriptStatus === "approved" && isScriptApproved(item.scriptStatus))
         || (filters.scriptStatus === "rejected" && isScriptRejected(item.scriptStatus))
         || (filters.scriptStatus === "unset" && !isScriptApproved(item.scriptStatus) && !isScriptRejected(item.scriptStatus));
-      return filterByMode(filters.progress, progressMatch, "progress")
+      return titleMatch
+        && filterByMode(filters.progress, progressMatch, "progress")
         && filterByMode(filters.week, weekMatch, "week")
         && filterByMode(filters.scriptType, scriptTypeMatch, "scriptType")
         && filterByMode(filters.vendor, vendorMatch, "vendor")

@@ -1573,6 +1573,36 @@ h3 { font-size: 17px; }
   gap: 7px;
 }
 
+.filter-title-search {
+  grid-column: span 2;
+}
+
+.filtered-material-view {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid rgba(237, 220, 166, .82);
+  border-radius: 16px;
+  background: rgba(255, 252, 241, .72);
+}
+
+.filtered-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.filtered-result-head h3 {
+  font-size: 16px;
+}
+
+.filtered-result-head span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .filter-mode {
   border-color: rgba(242, 165, 31, .42);
   background: #fff2c2;
@@ -3099,6 +3129,7 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   .sidebar-cloud-panel .cloud-form { grid-template-columns: 1fr; }
   .filter-bar { grid-template-columns: 1fr; }
   .filter-pair { grid-template-columns: 1fr; }
+  .filter-title-search { grid-column: auto; }
   .bulk-bar { top: 88px; right: 8px; width: calc(100vw - 16px); }
   .week-overview-head { padding: 18px 18px 18px 54px; }
   .week-title-block { grid-template-columns: 1fr; }
