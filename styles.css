@@ -2502,11 +2502,14 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
 
 .note-board {
   display: grid;
+  min-width: 0;
   gap: 10px;
   margin-top: 16px;
 }
 
 .note {
+  min-width: 0;
+  max-width: 100%;
   padding: 13px;
   border: 0;
   border-radius: 6px 18px 18px 18px;
@@ -2518,8 +2521,13 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
 }
 
 .note > p {
+  max-width: 100%;
+  margin: 0;
   line-height: 1.65;
   font-weight: 600;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .note:nth-child(2n) {
