@@ -2404,6 +2404,7 @@ details:not([open]) > .material-group-head h3::before {
   background-size: 34px 34px, 34px 34px, auto;
   color: #24422f;
   box-shadow: 0 24px 50px rgba(88, 139, 95, .18);
+  backdrop-filter: none;
 }
 
 .brain-layout .panel:first-child::after {
@@ -2512,13 +2513,19 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   background: #fff0b8;
   color: #18324a;
   box-shadow: 0 10px 20px rgba(128, 87, 24, .14);
-  transform: rotate(-.4deg);
+  transform: none;
+  backdrop-filter: none;
+}
+
+.note > p {
+  line-height: 1.65;
+  font-weight: 600;
 }
 
 .note:nth-child(2n) {
   background: #dcfff2;
   color: #143728;
-  transform: rotate(.35deg);
+  transform: none;
 }
 
 .note:nth-child(3n) {
