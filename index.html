@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260706-wrap-idea-links" />
+    <link rel="stylesheet" href="styles.css?v=20260706-video-stale-report" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -20,6 +20,7 @@
           <button class="nav-tab active" data-view="todo">每日待办</button>
           <button class="nav-tab" data-view="materials">素材库</button>
           <button class="nav-tab" data-view="brain">知识沉淀</button>
+          <button class="nav-tab" data-view="report">周报</button>
         </nav>
         <section class="sidebar-cloud-panel" id="cloudPanel">
           <div class="profile-row">
@@ -423,6 +424,17 @@
             </section>
           </div>
         </section>
+
+        <section id="reportView" class="view">
+          <div class="report-toolbar">
+            <div><p class="eyebrow">自动汇总</p><h2>个人工作周报</h2></div>
+            <div class="report-actions">
+              <label>周维度<select id="reportWeek"></select></label>
+              <button class="primary-btn" id="copyWeeklyReport" type="button">复制周报</button>
+            </div>
+          </div>
+          <div id="weeklyReportContent"></div>
+        </section>
       </main>
     </div>
 
@@ -526,6 +538,10 @@
             </select>
           </label>
         </div>
+        <div class="material-upload-status" id="materialUploadStatus" hidden>
+          <span>准备上传…</span>
+          <div><i></i></div>
+        </div>
         <div class="form-actions">
           <button class="ghost-btn" type="button" id="cancelMaterial">取消</button>
           <button class="primary-btn" type="submit">保存素材</button>
@@ -582,7 +598,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260703-flat-filter-results"></script>
+    <script src="app.js?v=20260706-video-stale-report"></script>
   </body>
 </html>
 

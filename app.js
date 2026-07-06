@@ -9,6 +9,8 @@
   const TUS_CLIENT_URL = "tus.min.js?v=20260615-tus-all";
   const TUS_CHUNK_SIZE = 6 * 1024 * 1024;
   const SUPABASE_FREE_FILE_LIMIT = 50 * 1000 * 1000;
+  const CLOUD_VIDEO_PART_SIZE = 40 * 1000 * 1000;
+  const STALE_MATERIAL_DAYS = 7;
   const FALLBACK_SUPABASE_CONFIG = {
     url: "https://mcqmltqlqvljpteqvpje.supabase.co",
     anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1jcW1sdHFscXZsanB0ZXF2cGplIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5MDg5MDUsImV4cCI6MjA5NTQ4NDkwNX0.Bu_W_KzNIH0uMd7IgA3NTX1wN9B0LPDbkJrSgK1hSIs"
@@ -54,6 +56,7 @@
     statsMonth: getMonthLabel(toISODate(new Date())),
     reviewDimension: "project",
     reviewWeek: "",
+    reportWeek: getWeekRangeLabel(toISODate(new Date())),
     assetDrafts: [],
     materialOpenKeys: new Set(),
     materialOpenStateReady: false,
@@ -127,6 +130,7 @@
     bindGoals();
     bindMaterials();
     bindBrain();
+    bindWeeklyReport();
     bindMemoryInputs();
     seedMaterialMemory();
     seedOnboardingGoals();
@@ -1276,6 +1280,7 @@
       submit.disabled = true;
       submit.textContent = "处理中...";
       try {
+        setUploadStatus("正在整理素材文件…", 0);
         const editing = state.materials.find((item) => item.id === state.editingMaterialId);
         const metricFile = $("#materialMetric").files[0];
         if (metricFile) assertCloudUploadable(metricFile);
@@ -1295,6 +1300,9 @@
         };
         const rawScriptStatus = formData.get("scriptStatus") || "";
         const scriptStatus = progress.passed ? "通过" : isScriptApproved(rawScriptStatus) ? "" : rawScriptStatus;
+        const statusChanged = !editing
+          || JSON.stringify(normalizeProgress(editing.progress)) !== JSON.stringify(progress)
+          || (editing.scriptStatus || "") !== scriptStatus;
         const payload = {
           id,
           title: $("#materialTitle").value.trim(),
@@ -1321,7 +1329,8 @@
           feishuSyncStatus: editing?.feishuSyncStatus || "",
           feishuSyncedAt: editing?.feishuSyncedAt || 0,
           createdAt: editing?.createdAt || Date.now(),
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
+          statusUpdatedAt: statusChanged ? Date.now() : editing?.statusUpdatedAt || editing?.updatedAt || Date.now()
         };
         state.materials = editing
           ? state.materials.map((item) => item.id === id ? payload : item)
@@ -1335,6 +1344,7 @@
       } catch (error) {
         alert(error.message);
       } finally {
+        setUploadStatus("", 0);
         submit.disabled = false;
         submit.textContent = "保存素材";
       }
@@ -1680,6 +1690,72 @@
     renderMaterials();
     renderIdeas();
     renderDocs();
+    renderWeeklyReport();
+  }
+
+  function bindWeeklyReport() {
+    $("#reportWeek").addEventListener("change", (event) => {
+      state.reportWeek = event.target.value;
+      renderWeeklyReport();
+    });
+    $("#copyWeeklyReport").addEventListener("click", async () => {
+      await navigator.clipboard.writeText(buildWeeklyReportText(state.reportWeek));
+      $("#copyWeeklyReport").textContent = "已复制";
+      setTimeout(() => { $("#copyWeeklyReport").textContent = "复制周报"; }, 1500);
+    });
+  }
+
+  function weeklyReportOptions() {
+    const labels = new Map();
+    const addDate = (value) => {
+      if (!value) return;
+      const label = getWeekRangeLabel(value);
+      labels.set(label, Math.max(labels.get(label) || 0, getWeekStartTime(value)));
+    };
+    state.materials.forEach((item) => addDate(getMaterialBelongDate(item)));
+    state.todos.forEach((item) => addDate(item.date));
+    state.goals.forEach((item) => {
+      addDate(item.completedAt);
+    });
+    addDate(toISODate(new Date()));
+    return [...labels.entries()].sort((a, b) => b[1] - a[1]).map(([label]) => [label, label]);
+  }
+
+  function weeklyReportData(week) {
+    const materials = state.materials.filter((item) => getMaterialWeekLabel(item) === week);
+    const approved = materials.filter((item) => isScriptApproved(item.scriptStatus));
+    const rejected = materials.filter((item) => isScriptRejected(item.scriptStatus));
+    const accepted = materials.filter((item) => normalizeProgress(item.progress).recovered);
+    const todos = state.todos.filter((item) => item.done && getWeekRangeLabel(item.date) === week);
+    const goals = state.goals.filter((item) => item.completedAt && getWeekRangeLabel(item.completedAt) === week);
+    return { materials, approved, rejected, accepted, todos, goals, vendors: vendorRows(materials) };
+  }
+
+  function renderWeeklyReport() {
+    if (!$("#reportWeek")) return;
+    const options = weeklyReportOptions();
+    if (!options.some(([value]) => value === state.reportWeek)) state.reportWeek = options[0]?.[0] || "";
+    fillSelect("#reportWeek", options, state.reportWeek);
+    const data = weeklyReportData(state.reportWeek);
+    $("#weeklyReportContent").innerHTML = `
+      <div class="report-metric-grid">
+        <article><span>脚本产出</span><strong>${data.materials.length}</strong></article>
+        <article class="approved"><span>通过</span><strong>${data.approved.length}</strong></article>
+        <article class="rejected"><span>未通过</span><strong>${data.rejected.length}</strong></article>
+        <article class="accepted"><span>已验收</span><strong>${data.accepted.length}</strong></article>
+        <article><span>通过率</span><strong>${formatRate(data.approved.length, data.materials.length)}</strong></article>
+        <article><span>验收率</span><strong>${formatRate(data.accepted.length, data.approved.length)}</strong></article>
+      </div>
+      <div class="report-columns">
+        <section><h3>供应商分布</h3>${data.vendors.length ? data.vendors.map((row) => `<div class="report-row"><span>${escapeHtml(row.name)}</span><b>${row.count} 条</b></div>`).join("") : `<p class="muted-note">本周暂无素材。</p>`}</section>
+        <section><h3>已完成待办</h3>${data.todos.length ? data.todos.map((item) => `<div class="report-row"><span>${escapeHtml(item.title)}</span><b>${escapeHtml(item.date)}</b></div>`).join("") : `<p class="muted-note">本周暂无完成待办。</p>`}</section>
+        <section><h3>达成目标</h3>${data.goals.length ? data.goals.map((item) => `<div class="report-row"><span>${escapeHtml(item.title)}</span><b>${escapeHtml(item.completedAt)}</b></div>`).join("") : `<p class="muted-note">本周暂无达成目标。</p>`}</section>
+      </div>`;
+  }
+
+  function buildWeeklyReportText(week) {
+    const data = weeklyReportData(week);
+    return [`【${week} 周报】`, `脚本产出：${data.materials.length} 条`, `通过：${data.approved.length} 条（${formatRate(data.approved.length, data.materials.length)}）`, `未通过：${data.rejected.length} 条`, `已验收：${data.accepted.length} 条（验收率 ${formatRate(data.accepted.length, data.approved.length)}）`, `供应商：${data.vendors.map((row) => `${row.name} ${row.count}条`).join("、") || "无"}`, `完成待办：${data.todos.map((item) => item.title).join("；") || "无"}`, `达成目标：${data.goals.map((item) => item.title).join("；") || "无"}`].join("\n");
   }
 
   function renderGoals() {
@@ -1985,6 +2061,7 @@
     $("#materialEmpty").textContent = state.materials.length ? "没有符合筛选条件的素材。" : "还没有素材，先上传一条视频素材。";
     const hasActiveFilters = Object.entries(state.materialFilters)
       .some(([key, value]) => key === "title" ? Boolean(String(value || "").trim()) : Boolean(value));
+    const orderedFiltered = [...filtered].sort((a, b) => Number(isStaleMaterial(b)) - Number(isStaleMaterial(a)));
     if (hasActiveFilters && filtered.length) {
       grid.innerHTML = `
         <section class="filtered-material-view">
@@ -1993,15 +2070,23 @@
             <span>共 ${filtered.length} 条素材</span>
           </div>
           <div class="material-group-grid">
-            ${filtered.map(renderMaterialCard).join("")}
+            ${orderedFiltered.map(renderMaterialCard).join("")}
           </div>
         </section>
       `;
     } else if (hasActiveFilters) {
       grid.innerHTML = "";
     } else {
-      const weekGroups = groupMaterialsByWeek(filtered);
-      grid.innerHTML = weekGroups.map(({ week, items, projectGroups }) => `
+      const staleItems = filtered.filter(isStaleMaterial).sort((a, b) => materialStatusTime(a) - materialStatusTime(b));
+      const regularItems = filtered.filter((item) => !isStaleMaterial(item));
+      const weekGroups = groupMaterialsByWeek(regularItems);
+      const staleSection = staleItems.length ? `
+        <section class="stale-material-section">
+          <div class="filtered-result-head"><h3>待跟进素材</h3><span>${staleItems.length} 条长期未验收</span></div>
+          <div class="material-group-grid">${staleItems.map(renderMaterialCard).join("")}</div>
+        </section>
+      ` : "";
+      grid.innerHTML = staleSection + weekGroups.map(({ week, items, projectGroups }) => `
       <details class="week-overview" data-open-key="${escapeAttr(materialOpenKey("week", week))}" ${detailOpenAttr(materialOpenKey("week", week), false)}>
         <summary class="week-overview-head">
           <div class="week-title-block">
@@ -2121,13 +2206,25 @@
     return parts.map((part) => String(part || "").replaceAll("|", "/")).join("|");
   }
 
+  function materialStatusTime(item) {
+    return Number(item?.statusUpdatedAt || item?.updatedAt || item?.createdAt || 0);
+  }
+
+  function materialStaleDays(item) {
+    return Math.max(0, Math.floor((Date.now() - materialStatusTime(item)) / 86400000));
+  }
+
+  function isStaleMaterial(item) {
+    return !normalizeProgress(item?.progress).recovered && materialStaleDays(item) >= STALE_MATERIAL_DAYS;
+  }
+
   function renderMaterialCard(item) {
     const assets = normalizedAssets(item);
     const primaryAsset = assets[0] || {};
     const cover = primaryAsset.cover || item.cover || createPlaceholderCover(item.title);
     const hasPrimaryVideo = Boolean(primaryAsset.videoKey || item.videoKey);
     return `
-      <article class="material-card ${scriptCardClass(item.scriptStatus)}" data-id="${item.id}">
+      <article class="material-card ${scriptCardClass(item.scriptStatus)} ${isStaleMaterial(item) ? "is-stale" : ""}" data-id="${item.id}">
         ${renderScriptStatusBadge(item.scriptStatus)}
         <button class="cover-btn" data-action="play" title="${hasPrimaryVideo ? "播放完整视频" : "未上传视频"}">
           <img alt="${escapeAttr(item.title)} 封面" src="${escapeAttr(cover)}" />
@@ -2135,6 +2232,7 @@
           <span class="cover-tags">${normalizedTags(item).map((tagValue, index) => `<span class="cover-tag ${index === 0 ? "primary" : ""}">${escapeHtml(tagValue)}</span>`).join("")}</span>
         </button>
         <div class="material-body">
+          ${isStaleMaterial(item) ? `<div class="stale-material-alert">已 ${materialStaleDays(item)} 天未更新状态，请跟进验收</div>` : ""}
           <label class="material-select-wrap"><input class="material-select" type="checkbox" data-id="${item.id}" />选择该素材</label>
           <h3>${escapeHtml(item.title)}</h3>
           <div class="material-date">记录时间：${escapeHtml(item.date || "")}</div>
@@ -2605,23 +2703,29 @@
       alert("这条素材还没有上传视频。");
       return;
     }
-    let file = await getFile(videoKey);
-    if (!file) {
+    let playable = state.supabase && state.user
+      ? await getCloudPlayableSource(videoKey)
+      : null;
+    let file = playable?.file || (!state.supabase || !state.user ? await getFile(videoKey) : null);
+    if (!playable && file) playable = { src: URL.createObjectURL(file), objectUrl: true, file };
+    if (!playable) {
       const repairedKey = await findCloudVideoKeyForMaterial(item.id);
       if (repairedKey && repairedKey !== videoKey) {
         videoKey = repairedKey;
-        file = await getFile(videoKey);
-        if (file) repairMaterialVideoKey(item.id, asset?.id, videoKey, file);
+        playable = await getCloudPlayableSource(videoKey);
+        file = playable?.file || null;
+        if (playable) repairMaterialVideoKey(item.id, asset?.id, videoKey, file);
       }
     }
-    if (!file) {
+    if (!playable) {
       alert("没有找到这个视频文件，可能是之前上传失败或云端文件已失效。请重新编辑这条素材并上传视频。");
       return;
     }
     const player = $("#videoPlayer");
     $("#videoTitle").textContent = asset?.name || item.title;
-    if (player.src) URL.revokeObjectURL(player.src);
-    player.src = URL.createObjectURL(file);
+    if (player.dataset.objectUrl === "true" && player.src) URL.revokeObjectURL(player.src);
+    player.src = playable.src;
+    player.dataset.objectUrl = playable.objectUrl ? "true" : "false";
     player.load();
     $("#videoDialog").showModal();
     player.play().catch(() => {
@@ -2642,7 +2746,8 @@
     if (error || !Array.isArray(data)) return "";
     const match = data.find((entry) => {
       const type = entry?.metadata?.mimetype || entry?.metadata?.contentType || "";
-      return entry?.name?.startsWith(prefix) && (!type || String(type).startsWith("video/"));
+      const isManifest = entry?.name?.endsWith(".parts.json");
+      return entry?.name?.startsWith(prefix) && (isManifest || !type || String(type).startsWith("video/"));
     });
     return match?.name || "";
   }
@@ -2893,11 +2998,11 @@
     for (const [index, draft] of drafts.entries()) {
       if (!draft.file && !draft.videoKey && !draft.videoName && !draft.name) continue;
       const file = draft.file;
-      const videoKey = file ? `asset-${materialId}-${draft.id}-${Date.now()}` : draft.videoKey;
+      let videoKey = file ? `asset-${materialId}-${draft.id}-${Date.now()}` : draft.videoKey;
       const videoName = file?.name || draft.videoName || "";
       const cover = file ? await captureVideoCover(file) : draft.cover;
       const uploadFile = file ? await prepareVideoUploadFile(file) : null;
-      if (uploadFile) await putFile(videoKey, uploadFile);
+      if (uploadFile) videoKey = await putFile(videoKey, uploadFile) || videoKey;
       saved.push({
         id: draft.id || crypto.randomUUID(),
         name: draft.name || videoName || (drafts.length > 1 ? `${baseTitle}-${index + 1}` : baseTitle),
@@ -3170,7 +3275,7 @@
       if (item.id !== id) return item;
       const progress = normalizeProgress(item.progress);
       progress[key] = !progress[key];
-      return normalizeMaterialStatus({ ...item, progress, updatedAt: Date.now() });
+      return normalizeMaterialStatus({ ...item, progress, statusUpdatedAt: Date.now(), updatedAt: Date.now() });
     });
     save("pm.materials", state.materials);
     renderMaterials();
@@ -3292,7 +3397,7 @@
         const progress = normalizeProgress(item.progress);
         if (isScriptApproved(value)) progress.passed = true;
         if (isScriptRejected(value)) progress.passed = false;
-        return normalizeMaterialStatus({ ...item, scriptStatus: value, progress, updatedAt: Date.now() });
+        return normalizeMaterialStatus({ ...item, scriptStatus: value, progress, statusUpdatedAt: Date.now(), updatedAt: Date.now() });
       }
       if (field === "vendor") return { ...item, vendor: value, updatedAt: Date.now() };
       const tags = [...normalizedTags(item)];
@@ -3378,8 +3483,9 @@
   function closeVideo() {
     const player = $("#videoPlayer");
     player.pause();
-    if (player.src) URL.revokeObjectURL(player.src);
+    if (player.dataset.objectUrl === "true" && player.src) URL.revokeObjectURL(player.src);
     player.removeAttribute("src");
+    player.dataset.objectUrl = "false";
     if ($("#videoDialog").open) $("#videoDialog").close();
   }
 
@@ -3583,7 +3689,8 @@
 
   async function putFile(key, file) {
     if (state.supabase && state.user) return putCloudFile(key, file);
-    return putLocalFile(key, file);
+    await putLocalFile(key, file);
+    return key;
   }
 
   async function getFile(key) {
@@ -3616,13 +3723,59 @@
 
   async function prepareVideoUploadFile(file) {
     if (!file || !state.supabase || !state.user || !isVideoFile(file)) return file;
-    assertCloudUploadable(file);
     return file;
   }
 
   async function putCloudFile(key, file) {
+    if (isVideoFile(file) && file.size > SUPABASE_FREE_FILE_LIMIT) {
+      return putCloudMultipartVideo(key, file);
+    }
     assertCloudUploadable(file);
-    return putCloudFileResumable(key, file);
+    await putCloudFileResumable(key, file, (uploaded, total) => {
+      setUploadStatus(`正在上传 ${file.name || "附件"}`, total ? uploaded / total : 0);
+    });
+    return key;
+  }
+
+  function setUploadStatus(message, ratio = 0) {
+    const node = $("#materialUploadStatus");
+    if (!node) return;
+    node.hidden = !message;
+    node.querySelector("span").textContent = message;
+    node.querySelector("i").style.width = `${Math.max(0, Math.min(100, Math.round(ratio * 100)))}%`;
+  }
+
+  async function putCloudMultipartVideo(key, file) {
+    const partCount = Math.ceil(file.size / CLOUD_VIDEO_PART_SIZE);
+    const partKeys = [];
+    try {
+      for (let index = 0; index < partCount; index += 1) {
+        const start = index * CLOUD_VIDEO_PART_SIZE;
+        const end = Math.min(file.size, start + CLOUD_VIDEO_PART_SIZE);
+        const partKey = `${key}.part-${String(index + 1).padStart(4, "0")}`;
+        const part = file.slice(start, end, file.type || "application/octet-stream");
+        await putCloudFileResumable(partKey, part, (uploaded) => {
+          setUploadStatus(`正在上传 ${file.name}（第 ${index + 1}/${partCount} 段）`, (start + uploaded) / file.size);
+        });
+        partKeys.push(partKey);
+      }
+      const manifestKey = `${key}.parts.json`;
+      const manifest = new Blob([JSON.stringify({
+        version: 1,
+        name: file.name,
+        type: file.type || "video/mp4",
+        size: file.size,
+        parts: partKeys
+      })], { type: "application/json" });
+      await putCloudFileResumable(manifestKey, manifest);
+      setUploadStatus(`${file.name} 上传完成`, 1);
+      return manifestKey;
+    } catch (error) {
+      if (partKeys.length) {
+        await state.supabase.storage.from("personal-assets").remove(partKeys.map(cloudFilePath));
+      }
+      throw error;
+    }
   }
 
   async function getCloudFile(key) {
@@ -3633,7 +3786,37 @@
       console.warn(error.message);
       return null;
     }
-    return data;
+    if (!key.endsWith(".parts.json")) return data;
+    try {
+      const manifest = JSON.parse(await data.text());
+      const parts = [];
+      for (const partKey of manifest.parts || []) {
+        const { data: part, error: partError } = await state.supabase.storage
+          .from("personal-assets")
+          .download(cloudFilePath(partKey));
+        if (partError || !part) throw partError || new Error("视频分块缺失");
+        parts.push(part);
+      }
+      return new File(parts, manifest.name || "video.mp4", { type: manifest.type || "video/mp4" });
+    } catch (manifestError) {
+      console.warn(manifestError?.message || manifestError);
+      return null;
+    }
+  }
+
+  async function getCloudPlayableSource(key) {
+    if (key.endsWith(".parts.json")) {
+      const file = await getCloudFile(key);
+      return file ? { src: URL.createObjectURL(file), objectUrl: true, file } : null;
+    }
+    const { data, error } = await state.supabase.storage
+      .from("personal-assets")
+      .createSignedUrl(cloudFilePath(key), 60 * 60);
+    if (error || !data?.signedUrl) {
+      const file = await getCloudFile(key);
+      return file ? { src: URL.createObjectURL(file), objectUrl: true, file } : null;
+    }
+    return { src: data.signedUrl, objectUrl: false, file: null };
   }
 
   async function ensureTusClient() {
@@ -3666,7 +3849,7 @@
     }
   }
 
-  async function putCloudFileResumable(key, file) {
+  async function putCloudFileResumable(key, file, onProgress) {
     const tus = await ensureTusClient();
     const { data, error } = await withTimeout(state.supabase.auth.getSession(), 20000, "获取上传登录状态");
     const accessToken = data?.session?.access_token;
@@ -3691,6 +3874,7 @@
           contentType: file.type || "application/octet-stream",
           cacheControl: "3600"
         },
+        onProgress: (bytesUploaded, bytesTotal) => onProgress?.(bytesUploaded, bytesTotal),
         onError: (uploadError) => {
           const message = uploadError?.originalResponse?.getBody?.() || uploadError?.message || "未知错误";
           reject(new Error(`Supabase 云端上传失败：${message}`));
@@ -3701,13 +3885,23 @@
         if (previousUploads.length) upload.resumeFromPreviousUpload(previousUploads[0]);
         upload.start();
       }).catch(() => upload.start());
-    }), 20 * 60 * 1000, "上传附件到云端");
+    }), 2 * 60 * 60 * 1000, "上传附件到云端");
   }
 
   async function deleteCloudFile(key) {
+    let keys = [key];
+    if (key.endsWith(".parts.json")) {
+      const { data } = await state.supabase.storage.from("personal-assets").download(cloudFilePath(key));
+      try {
+        const manifest = data ? JSON.parse(await data.text()) : null;
+        keys = [key, ...(manifest?.parts || [])];
+      } catch {
+        keys = [key];
+      }
+    }
     const { error } = await state.supabase.storage
       .from("personal-assets")
-      .remove([cloudFilePath(key)]);
+      .remove(keys.map(cloudFilePath));
     if (error) console.warn(error.message);
   }
 
