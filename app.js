@@ -2081,10 +2081,10 @@
       const regularItems = filtered.filter((item) => !isStaleMaterial(item));
       const weekGroups = groupMaterialsByWeek(regularItems);
       const staleSection = staleItems.length ? `
-        <section class="stale-material-section">
-          <div class="filtered-result-head"><h3>待跟进素材</h3><span>${staleItems.length} 条长期未验收</span></div>
+        <details class="stale-material-section">
+          <summary class="filtered-result-head"><h3>待跟进素材</h3><span>${staleItems.length} 条长期未验收</span></summary>
           <div class="material-group-grid">${staleItems.map(renderMaterialCard).join("")}</div>
-        </section>
+        </details>
       ` : "";
       grid.innerHTML = staleSection + weekGroups.map(({ week, items, projectGroups }) => `
       <details class="week-overview" data-open-key="${escapeAttr(materialOpenKey("week", week))}" ${detailOpenAttr(materialOpenKey("week", week), false)}>

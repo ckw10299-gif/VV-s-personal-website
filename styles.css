@@ -1587,14 +1587,22 @@ h3 { font-size: 17px; }
 }
 
 .stale-material-section {
-  display: grid;
-  gap: 14px;
   padding: 16px;
   border: 2px solid #f2a65a;
   border-radius: 16px;
   background: #fff7e8;
   box-shadow: 0 10px 24px rgba(194, 101, 35, .10);
 }
+
+.stale-material-section > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.stale-material-section > summary::-webkit-details-marker { display: none; }
+.stale-material-section > summary h3::before { content: "▸"; display: inline-block; margin-right: 8px; color: #c65f28; }
+.stale-material-section[open] > summary h3::before { content: "▾"; }
+.stale-material-section[open] > .material-group-grid { margin-top: 14px; }
 
 .material-card.is-stale { border-color: #ef8b4c; box-shadow: 0 12px 26px rgba(194, 101, 35, .16); }
 .stale-material-alert { margin-bottom: 8px; padding: 7px 9px; border-radius: 9px; background: #fff0df; color: #a74720; font-size: 12px; font-weight: 900; }
