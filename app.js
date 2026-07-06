@@ -2215,7 +2215,9 @@
   }
 
   function isStaleMaterial(item) {
-    return !normalizeProgress(item?.progress).recovered && materialStaleDays(item) >= STALE_MATERIAL_DAYS;
+    return !isScriptRejected(item?.scriptStatus)
+      && !normalizeProgress(item?.progress).recovered
+      && materialStaleDays(item) >= STALE_MATERIAL_DAYS;
   }
 
   function renderMaterialCard(item) {
