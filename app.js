@@ -731,18 +731,6 @@
       return;
     }
     const items = Array.isArray(value) ? value : [];
-    const deleted = await withTimeout(
-      state.supabase.from("app_items").delete().eq("kind", kind).eq("user_id", state.user.id),
-      15000,
-      `清理${kind}`
-    );
-    if (deleted.error) {
-      throw new Error(deleted.error.message);
-    }
-    if (!items.length) {
-      markCloudSynced();
-      return;
-    }
     const rows = items.map((item) => ({
       id: item.id,
       user_id: state.user.id,
@@ -750,8 +738,26 @@
       data: item,
       updated_at: new Date(item.updatedAt || item.createdAt || Date.now()).toISOString()
     }));
-    const { error } = await withTimeout(state.supabase.from("app_items").insert(rows), 20000, `保存${kind}`);
-    if (error) throw new Error(error.message);
+    if (rows.length) {
+      const { error } = await withTimeout(state.supabase.from("app_items").upsert(rows), 20000, `保存${kind}`);
+      if (error) throw new Error(error.message);
+    }
+    const existing = await withTimeout(
+      state.supabase.from("app_items").select("id").eq("kind", kind).eq("user_id", state.user.id),
+      15000,
+      `核对${kind}`
+    );
+    if (existing.error) throw new Error(existing.error.message);
+    const currentIds = new Set(items.map((item) => item.id));
+    const removedIds = (existing.data || []).map((row) => row.id).filter((id) => !currentIds.has(id));
+    if (removedIds.length) {
+      const deleted = await withTimeout(
+        state.supabase.from("app_items").delete().eq("kind", kind).eq("user_id", state.user.id).in("id", removedIds),
+        15000,
+        `清理${kind}`
+      );
+      if (deleted.error) throw new Error(deleted.error.message);
+    }
     markCloudSynced();
   }
 
@@ -2078,8 +2084,7 @@
       grid.innerHTML = "";
     } else {
       const staleItems = filtered.filter(isStaleMaterial).sort((a, b) => materialStatusTime(a) - materialStatusTime(b));
-      const regularItems = filtered.filter((item) => !isStaleMaterial(item));
-      const weekGroups = groupMaterialsByWeek(regularItems);
+      const weekGroups = groupMaterialsByWeek(filtered);
       const staleSection = staleItems.length ? `
         <details class="stale-material-section">
           <summary class="filtered-result-head"><h3>待跟进素材</h3><span>${staleItems.length} 条长期未验收</span></summary>
