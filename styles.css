@@ -2474,6 +2474,85 @@ details:not([open]) > .material-group-head h3::before {
 .compact { margin-bottom: 14px; }
 .quick-form { display: grid; gap: 10px; }
 
+.knowledge-tag-input {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr);
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.knowledge-filter-bar,
+.doc-head-actions,
+.knowledge-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.knowledge-filter-bar {
+  justify-content: space-between;
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.knowledge-filter-bar select,
+.doc-head-actions select,
+.idea-tag-select {
+  width: auto;
+  min-width: 112px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.doc-head-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.knowledge-card-head {
+  justify-content: space-between;
+  margin-bottom: 9px;
+}
+
+.knowledge-tag,
+.pinned-doc-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.knowledge-tag.brainstorm { color: #7c3aed; background: #f1e8ff; }
+.knowledge-tag.idea { color: #a45300; background: #fff0b8; }
+.knowledge-tag.work { color: #087152; background: #dff7f1; }
+
+.pinned-doc-badge {
+  margin-left: auto;
+  color: #9a3412;
+  background: #ffdf9e;
+}
+
+.doc-pin-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 9px 11px;
+  border: 1px solid rgba(242, 165, 31, .34);
+  border-radius: 12px;
+  background: #fff8dc;
+  font-weight: 850;
+}
+
+.doc-pin-option input { width: auto; }
+
 .idea-paste-preview {
   display: flex;
   flex-wrap: wrap;
@@ -2632,6 +2711,15 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
 }
 
 .doc-item { padding: 15px; }
+
+.doc-item.is-pinned {
+  border: 2px solid #f2a51f;
+  background: linear-gradient(135deg, #fff9dc, #fff1b8);
+  box-shadow: 0 14px 28px rgba(194, 101, 35, .16);
+}
+
+.doc-item.is-pinned h3 { color: #7c3f00; }
+.pin-doc-btn { color: #a45300; }
 .doc-body { margin-top: 8px; color: #3d4658; white-space: pre-wrap; }
 
 .doc-summary-panel {

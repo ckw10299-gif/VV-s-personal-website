@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260708-acceptance-node" />
+    <link rel="stylesheet" href="styles.css?v=20260708-knowledge-tags-pin" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -396,9 +396,25 @@
               </div>
               <form class="quick-form" id="ideaForm">
                 <textarea id="ideaInput" placeholder="快速记下一条灵感、观点、待沉淀内容"></textarea>
+                <label class="knowledge-tag-input">内容标签
+                  <select id="ideaTag">
+                    <option value="脑暴">脑暴</option>
+                    <option value="小巧思">小巧思</option>
+                    <option value="工作相关">工作相关</option>
+                  </select>
+                </label>
                 <div class="idea-paste-preview" id="ideaPastePreview" hidden></div>
                 <button class="primary-btn" type="submit">加入看板</button>
               </form>
+              <div class="knowledge-filter-bar">
+                <span>按标签查看</span>
+                <select id="ideaTagFilter">
+                  <option value="">全部标签</option>
+                  <option value="脑暴">脑暴</option>
+                  <option value="小巧思">小巧思</option>
+                  <option value="工作相关">工作相关</option>
+                </select>
+              </div>
               <div class="note-board" id="ideaBoard"></div>
             </section>
 
@@ -408,7 +424,15 @@
                   <p class="eyebrow">文档沉淀</p>
                   <h2>深度文档沉淀</h2>
                 </div>
-                <button class="primary-btn" id="openDocModal">新建文档</button>
+                <div class="doc-head-actions">
+                  <select id="docTagFilter" title="按标签筛选文档">
+                    <option value="">全部标签</option>
+                    <option value="脑暴">脑暴</option>
+                    <option value="小巧思">小巧思</option>
+                    <option value="工作相关">工作相关</option>
+                  </select>
+                  <button class="primary-btn" id="openDocModal">新建文档</button>
+                </div>
               </div>
               <div class="doc-list" id="docList"></div>
             </section>
@@ -590,6 +614,14 @@
             <option value="其他">其他</option>
           </select>
         </label>
+        <label>内容标签
+          <select id="docTag">
+            <option value="脑暴">脑暴</option>
+            <option value="小巧思">小巧思</option>
+            <option value="工作相关">工作相关</option>
+          </select>
+        </label>
+        <label class="doc-pin-option"><input id="docPinned" type="checkbox" />置顶这份文档</label>
         <label>标题<input id="docTitle" required maxlength="80" /></label>
         <label>文档 URL<input id="docLink" type="url" placeholder="https://..." required /></label>
         <label>备注<textarea id="docBody" rows="4" placeholder="可以补充这份文档的用途、结论或后续动作"></textarea></label>
@@ -602,7 +634,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260708-acceptance-node"></script>
+    <script src="app.js?v=20260708-knowledge-tags-pin"></script>
   </body>
 </html>
 

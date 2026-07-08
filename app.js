@@ -23,6 +23,7 @@
   };
 
   const DOC_CATEGORIES = ["个人深度文档", "工作相关文档", "专业文档", "其他"];
+  const KNOWLEDGE_TAGS = ["脑暴", "小巧思", "工作相关"];
   const TYPE_CLASS = {
     business: "business",
     pm: "pm",
@@ -52,6 +53,8 @@
     pendingIdeaImages: [],
     ideaImageUrls: [],
     activeIdeaImageUrl: "",
+    ideaTagFilter: "",
+    docTagFilter: "",
     statsWeek: getWeekRangeLabel(toISODate(new Date())),
     statsMonth: getMonthLabel(toISODate(new Date())),
     reviewDimension: "project",
@@ -1563,11 +1566,19 @@
         await putFile(key, item.file);
         imageKeys.push({ key, name: item.file.name || `脑暴图片-${index + 1}.png`, type: item.file.type || "image/png" });
       }
-      state.ideas.unshift({ id, text, imageKeys, createdAt: Date.now() });
+      state.ideas.unshift({ id, text, imageKeys, tag: normalizeKnowledgeTag($("#ideaTag").value), createdAt: Date.now() });
       save("pm.ideas", state.ideas);
       $("#ideaInput").value = "";
       clearPendingIdeaImages();
       renderIdeas();
+    });
+    $("#ideaTagFilter").addEventListener("change", (event) => {
+      state.ideaTagFilter = event.target.value;
+      renderIdeas();
+    });
+    $("#docTagFilter").addEventListener("change", (event) => {
+      state.docTagFilter = event.target.value;
+      renderDocs();
     });
     $("#openDocModal").addEventListener("click", () => {
       resetDocForm();
@@ -1591,6 +1602,8 @@
       const doc = {
         id: editing?.id || crypto.randomUUID(),
         category: $("#docCategory").value || "其他",
+        tag: normalizeKnowledgeTag($("#docTag").value, "工作相关"),
+        pinned: $("#docPinned").checked,
         title,
         body,
         link,
@@ -1617,6 +1630,8 @@
     $("#docDialogTitle").textContent = "编辑深度记录";
     $("#docSubmitBtn").textContent = "保存修改";
     $("#docCategory").value = normalizedDocCategory(doc);
+    $("#docTag").value = normalizeKnowledgeTag(doc.tag, normalizedDocTag(doc));
+    $("#docPinned").checked = doc.pinned === true;
     $("#docTitle").value = doc.title || "";
     $("#docLink").value = doc.link || "";
     $("#docLink").required = !doc.attachmentKey;
@@ -1630,6 +1645,8 @@
     state.editingDocId = null;
     $("#docForm").reset();
     $("#docCategory").value = DOC_CATEGORIES[0];
+    $("#docTag").value = "脑暴";
+    $("#docPinned").checked = false;
     $("#docLink").required = true;
     $("#docLink").setCustomValidity("");
     $("#docDialogTitle").textContent = "新建深度记录";
@@ -3551,13 +3568,19 @@
   function renderIdeas() {
     state.ideaImageUrls.forEach((url) => URL.revokeObjectURL(url));
     state.ideaImageUrls = [];
-    $("#ideaBoard").innerHTML = state.ideas.map((idea) => `
+    const ideas = state.ideas.filter((idea) => !state.ideaTagFilter || normalizeKnowledgeTag(idea.tag) === state.ideaTagFilter);
+    $("#ideaTagFilter").value = state.ideaTagFilter;
+    $("#ideaBoard").innerHTML = ideas.map((idea) => `
       <article class="note" data-id="${idea.id}">
+        <div class="knowledge-card-head">
+          <span class="knowledge-tag ${knowledgeTagClass(idea.tag)}">${escapeHtml(normalizeKnowledgeTag(idea.tag))}</span>
+          <select class="idea-tag-select" aria-label="修改内容标签">${knowledgeTagOptions(idea.tag)}</select>
+        </div>
         ${idea.text ? `<p>${escapeHtml(idea.text)}</p>` : ""}
         ${renderIdeaImages(idea)}
         <div class="note-meta">${formatTime(idea.createdAt)} · <button class="link-btn" data-action="delete">删除</button></div>
       </article>
-    `).join("") || `<div class="empty-state">随手写一条灵感，它会以便签形式留在这里。</div>`;
+    `).join("") || `<div class="empty-state">${state.ideaTagFilter ? "这个标签下还没有内容。" : "随手写一条灵感，它会以便签形式留在这里。"}</div>`;
     $("#ideaBoard").querySelectorAll("[data-idea-image]").forEach(async (slot) => {
       const file = await getFile(slot.dataset.ideaImage);
       if (!file) {
@@ -3581,6 +3604,14 @@
           await deleteFile(image.key);
         }
         state.ideas = state.ideas.filter((idea) => idea.id !== id);
+        save("pm.ideas", state.ideas);
+        renderIdeas();
+      });
+    });
+    $("#ideaBoard").querySelectorAll(".idea-tag-select").forEach((select) => {
+      select.addEventListener("change", () => {
+        const id = select.closest(".note").dataset.id;
+        state.ideas = state.ideas.map((idea) => idea.id === id ? { ...idea, tag: normalizeKnowledgeTag(select.value), updatedAt: Date.now() } : idea);
         save("pm.ideas", state.ideas);
         renderIdeas();
       });
@@ -3629,8 +3660,12 @@
     renderDocCategorySummary();
     const groups = DOC_CATEGORIES.map((category) => [
       category,
-      state.docs.filter((doc) => normalizedDocCategory(doc) === category)
+      state.docs
+        .filter((doc) => normalizedDocCategory(doc) === category)
+        .filter((doc) => !state.docTagFilter || normalizedDocTag(doc) === state.docTagFilter)
+        .sort((a, b) => Number(b.pinned === true) - Number(a.pinned === true) || Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))
     ]);
+    $("#docTagFilter").value = state.docTagFilter;
     $("#docList").innerHTML = groups.map(([category, docs]) => `
       <details class="doc-category-group" open>
         <summary>
@@ -3639,13 +3674,18 @@
         </summary>
         <div class="doc-category-list">
           ${docs.length ? docs.map((doc) => `
-            <article class="doc-item" data-id="${doc.id}">
+            <article class="doc-item ${doc.pinned ? "is-pinned" : ""}" data-id="${doc.id}">
+              <div class="knowledge-card-head">
+                <span class="knowledge-tag ${knowledgeTagClass(normalizedDocTag(doc))}">${escapeHtml(normalizedDocTag(doc))}</span>
+                ${doc.pinned ? `<span class="pinned-doc-badge">置顶文档</span>` : ""}
+              </div>
               <h3>${escapeHtml(doc.title)}</h3>
               <div class="doc-meta">${formatTime(doc.createdAt)} · ${escapeHtml(normalizedDocCategory(doc))}</div>
               ${doc.body ? `<p class="doc-body">${escapeHtml(doc.body)}</p>` : ""}
               <div class="card-actions">
                 ${doc.link ? `<a class="link-btn doc-link" href="${escapeAttr(doc.link)}" target="_blank" rel="noreferrer">打开链接</a>` : ""}
                 ${doc.attachmentKey ? `<button class="link-btn" data-action="download">查看旧附件：${escapeHtml(doc.attachmentName)}</button>` : ""}
+                <button class="link-btn pin-doc-btn" data-action="pin">${doc.pinned ? "取消置顶" : "置顶"}</button>
                 <button class="link-btn" data-action="edit">编辑</button>
                 <button class="link-btn" data-action="delete">删除</button>
               </div>
@@ -3660,6 +3700,12 @@
         const doc = state.docs.find((entry) => entry.id === id);
         if (button.dataset.action === "edit") {
           openDocEditor(id);
+          return;
+        }
+        if (button.dataset.action === "pin") {
+          state.docs = state.docs.map((entry) => entry.id === id ? { ...entry, pinned: !entry.pinned, updatedAt: Date.now() } : entry);
+          save("pm.docs", state.docs);
+          renderDocs();
           return;
         }
         if (button.dataset.action === "download" && doc) {
@@ -3695,6 +3741,24 @@
 
   function normalizedDocCategory(doc) {
     return DOC_CATEGORIES.includes(doc?.category) ? doc.category : "其他";
+  }
+
+  function normalizeKnowledgeTag(value, fallback = "脑暴") {
+    return KNOWLEDGE_TAGS.includes(value) ? value : fallback;
+  }
+
+  function normalizedDocTag(doc) {
+    const fallback = normalizedDocCategory(doc) === "工作相关文档" ? "工作相关" : "脑暴";
+    return normalizeKnowledgeTag(doc?.tag, fallback);
+  }
+
+  function knowledgeTagClass(value) {
+    return { "脑暴": "brainstorm", "小巧思": "idea", "工作相关": "work" }[normalizeKnowledgeTag(value)] || "brainstorm";
+  }
+
+  function knowledgeTagOptions(value) {
+    const selected = normalizeKnowledgeTag(value);
+    return KNOWLEDGE_TAGS.map((tag) => `<option value="${escapeAttr(tag)}" ${tag === selected ? "selected" : ""}>${escapeHtml(tag)}</option>`).join("");
   }
 
   async function captureVideoCover(file) {
