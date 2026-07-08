@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>躁侯退休（VV版）</title>
-    <link rel="stylesheet" href="styles.css?v=20260707-week-data-safety" />
+    <link rel="stylesheet" href="styles.css?v=20260708-acceptance-node" />
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -505,8 +505,12 @@
             <label><input id="progressPushed" type="checkbox" />是否推进</label>
             <label><input id="progressFlat" type="checkbox" />是否平面</label>
             <label><input id="progressVideo" type="checkbox" />是否视频</label>
-            <label><input id="progressRecovered" type="checkbox" />是否回收</label>
+            <label><input id="progressRecovered" type="checkbox" />是否验收</label>
           </div>
+          <label class="acceptance-node-field" id="acceptanceNodeField" hidden>
+            验收节点
+            <input id="acceptanceNode" maxlength="5" placeholder="例如 W20" autocomplete="off" />
+          </label>
         </fieldset>
         <label class="memory-field">供应商<input id="vendorName" maxlength="60" autocomplete="off" /><div class="memory-menu" data-menu-for="vendorName"></div></label>
         <fieldset class="type-field asset-upload-field">
@@ -598,7 +602,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260707-week-data-safety"></script>
+    <script src="app.js?v=20260708-acceptance-node"></script>
   </body>
 </html>
 

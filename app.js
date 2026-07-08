@@ -1255,6 +1255,10 @@
         if (isScriptApproved(status)) setScriptStatusRadio("");
       }
     });
+    $("#progressRecovered").addEventListener("change", (event) => {
+      updateAcceptanceNodeField(event.target.checked);
+      if (event.target.checked) $("#acceptanceNode").focus();
+    });
     document.querySelectorAll('input[name="scriptStatus"]').forEach((input) => {
       input.addEventListener("change", () => {
         if (!input.checked) return;
@@ -1304,6 +1308,13 @@
           recovered: $("#progressRecovered").checked,
           reviewSheet: $("#progressReviewSheet").checked
         };
+        const acceptanceNode = normalizeAcceptanceNode($("#acceptanceNode").value);
+        if (acceptanceNode && !isValidAcceptanceNode(acceptanceNode)) {
+          throw new Error("验收节点请填写为 Wxx 格式，例如 W20。");
+        }
+        if (progress.recovered && !acceptanceNode && !normalizeProgress(editing?.progress).recovered) {
+          throw new Error("请填写验收节点，例如 W20。");
+        }
         const rawScriptStatus = formData.get("scriptStatus") || "";
         const scriptStatus = progress.passed ? "通过" : isScriptApproved(rawScriptStatus) ? "" : rawScriptStatus;
         const statusChanged = !editing
@@ -1319,6 +1330,7 @@
           storageUrl: $("#materialStorageUrl").value.trim(),
           scriptStatus,
           progress,
+          acceptanceNode: progress.recovered ? (acceptanceNode || editing?.acceptanceNode || "") : "",
           vendor: $("#vendorName").value.trim(),
           tags: [$("#tagOne").value.trim(), $("#tagTwo").value.trim(), $("#tagThree").value.trim()],
           date: $("#materialDate").value,
@@ -2256,6 +2268,7 @@
           ${item.scriptLink ? `<a class="link-btn script-link ${scriptStatusClass(item.scriptStatus)}" href="${escapeAttr(item.scriptLink)}" target="_blank" rel="noreferrer">打开脚本链接</a>` : ""}
           ${renderMaterialAssets(item)}
           <div class="progress-row">${renderProgress(item.progress)}</div>
+          ${normalizeProgress(item.progress).recovered ? `<div class="acceptance-node-badge">验收节点 ${escapeHtml(item.acceptanceNode || "未填写")}</div>` : ""}
           <div class="rating-row">${renderStars(item.rating || 0)}</div>
           <div class="metric-slot" id="metric-${item.id}"></div>
           <div class="card-actions">
@@ -2478,7 +2491,7 @@
       ["pushed", "推进"],
       ["flat", "平面"],
       ["video", "视频"],
-      ["recovered", "回收"]
+      ["recovered", "验收"]
     ], state.materialFilters.progress);
     fillSelect("#filterTagOne", [["", "全部第一标签"], ...uniqueValues(state.materials.map((item) => normalizedTags(item)[0])).map((value) => [value, value])], state.materialFilters.tagOne);
     fillSelect("#filterTagTwo", [["", "全部第二标签"], ...uniqueValues(state.materials.map((item) => normalizedTags(item)[1])).map((value) => [value, value])], state.materialFilters.tagTwo);
@@ -2548,6 +2561,7 @@
         "平面": progress.flat ? "是" : "否",
         "视频": progress.video ? "是" : "否",
         "回收": progress.recovered ? "是" : "否",
+        "验收节点": item.acceptanceNode || "",
         "验收状态": progress.recovered ? "已结束" : "进行中",
         "数据评分": item.rating ? `${item.rating}星` : "未评分",
         "视频文件": materialAssetNames(item) || "无",
@@ -3198,6 +3212,7 @@
       "平面": progress.flat ? "是" : "否",
       "视频": progress.video ? "是" : "否",
       "回收": progress.recovered ? "是" : "否",
+      "验收节点": item.acceptanceNode || "",
       "验收": progress.recovered ? "已结束" : "进行中",
       "数据评分": item.rating ? `${item.rating}星` : "未评分",
       "视频文件": materialAssetNames(item) || "无",
@@ -3213,7 +3228,7 @@
       ["pushed", "推进"],
       ["flat", "平面"],
       ["video", "视频"],
-      ["recovered", "回收"]
+      ["recovered", "验收"]
     ];
     const normalizedProgress = normalizeProgress(progress);
     return items.map(([key, label]) => `<button class="progress-pill ${normalizedProgress[key] ? "on" : ""}" data-progress="${key}" type="button">${label}</button>`).join("");
@@ -3237,6 +3252,8 @@
     $("#progressFlat").checked = progress.flat;
     $("#progressVideo").checked = progress.video;
     $("#progressRecovered").checked = progress.recovered;
+    $("#acceptanceNode").value = item.acceptanceNode || "";
+    updateAcceptanceNodeField(progress.recovered);
     $("#progressReviewSheet").checked = progress.reviewSheet;
     $("#vendorName").value = item.vendor || "";
     const tags = normalizedTags(item);
@@ -3269,6 +3286,8 @@
     $("#progressFlat").checked = false;
     $("#progressVideo").checked = false;
     $("#progressRecovered").checked = false;
+    $("#acceptanceNode").value = "";
+    updateAcceptanceNodeField(false);
     $("#progressReviewSheet").checked = false;
   }
 
@@ -3278,11 +3297,30 @@
   }
 
   function toggleMaterialProgress(id, key) {
+    const current = state.materials.find((item) => item.id === id);
+    if (!current) return;
+    const currentProgress = normalizeProgress(current.progress);
+    let acceptanceNode = current.acceptanceNode || "";
+    if (key === "recovered" && !currentProgress.recovered) {
+      const input = prompt("请输入验收节点，例如 W20", acceptanceNode || "W");
+      if (input === null) return;
+      acceptanceNode = normalizeAcceptanceNode(input);
+      if (!isValidAcceptanceNode(acceptanceNode)) {
+        alert("验收节点请填写为 Wxx 格式，例如 W20。");
+        return;
+      }
+    }
     state.materials = state.materials.map((item) => {
       if (item.id !== id) return item;
       const progress = normalizeProgress(item.progress);
       progress[key] = !progress[key];
-      return normalizeMaterialStatus({ ...item, progress, statusUpdatedAt: Date.now(), updatedAt: Date.now() });
+      return normalizeMaterialStatus({
+        ...item,
+        progress,
+        acceptanceNode: key === "recovered" ? (progress.recovered ? acceptanceNode : "") : item.acceptanceNode || "",
+        statusUpdatedAt: Date.now(),
+        updatedAt: Date.now()
+      });
     });
     save("pm.materials", state.materials);
     renderMaterials();
@@ -3329,6 +3367,20 @@
       video: progress.video === true,
       recovered: progress.recovered === true
     };
+  }
+
+  function normalizeAcceptanceNode(value) {
+    return String(value || "").trim().toUpperCase().replace(/\s+/g, "");
+  }
+
+  function isValidAcceptanceNode(value) {
+    return /^W\d{1,3}$/.test(normalizeAcceptanceNode(value));
+  }
+
+  function updateAcceptanceNodeField(visible) {
+    const field = $("#acceptanceNodeField");
+    if (!field) return;
+    field.hidden = !visible;
   }
 
   function isScriptRejected(status) {

@@ -2947,6 +2947,35 @@ textarea:focus, input:focus, select:focus { border-color: var(--brand); box-shad
   width: auto;
 }
 
+.acceptance-node-field {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  color: #4b2a07;
+  font-weight: 850;
+}
+
+.acceptance-node-field[hidden] {
+  display: none;
+}
+
+.acceptance-node-field input {
+  max-width: 180px;
+  text-transform: uppercase;
+}
+
+.acceptance-node-badge {
+  width: fit-content;
+  margin-top: 8px;
+  padding: 5px 9px;
+  border: 1px solid rgba(59, 130, 246, .25);
+  border-radius: 999px;
+  color: #1d4ed8;
+  background: #eaf4ff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .asset-upload-field {
   gap: 12px;
 }
