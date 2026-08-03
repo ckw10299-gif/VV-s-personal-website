@@ -37,6 +37,7 @@
     selectedDate: toISODate(new Date()),
     editingTodoId: null,
     editingMaterialId: null,
+    materialDraftId: null,
     editingGoalId: null,
     editingDocId: null,
     supabase: null,
@@ -1337,6 +1338,7 @@
   function bindMaterials() {
     $("#openMaterialModal").addEventListener("click", () => {
       resetMaterialForm();
+      state.materialDraftId = crypto.randomUUID();
       $("#materialDate").value = toISODate(new Date());
       $("#materialBelongDate").value = toISODate(new Date());
       $("#materialDialog").showModal();
@@ -1399,7 +1401,8 @@
         const editing = state.materials.find((item) => item.id === state.editingMaterialId);
         const metricFile = $("#materialMetric").files[0];
         if (metricFile) assertCloudUploadable(metricFile);
-        const id = editing?.id || crypto.randomUUID();
+        const id = editing?.id || state.materialDraftId || crypto.randomUUID();
+        if (!editing && !state.materialDraftId) state.materialDraftId = id;
         const metricKey = metricFile ? `metric-${id}-${Date.now()}` : editing?.metricKey || "";
         const assets = await saveAssetDrafts(id, editing);
         const primaryAsset = assets[0] || null;
@@ -1455,7 +1458,8 @@
           updatedAt: Date.now(),
           statusUpdatedAt: statusChanged ? Date.now() : editing?.statusUpdatedAt || editing?.updatedAt || Date.now()
         };
-        state.materials = editing
+        const alreadyInList = state.materials.some((item) => item.id === id);
+        state.materials = editing || alreadyInList
           ? state.materials.map((item) => item.id === id ? payload : item)
           : [payload, ...state.materials];
         rememberMaterialFields(payload);
@@ -3357,6 +3361,7 @@
     const item = state.materials.find((entry) => entry.id === id);
     if (!item) return;
     state.editingMaterialId = id;
+    state.materialDraftId = null;
     $("#materialDialog .modal-head h2").textContent = "编辑素材";
     $("#materialTitle").value = item.title || "";
     $("#materialFinalName").value = item.finalName || "";
@@ -3391,6 +3396,7 @@
 
   function resetMaterialForm() {
     state.editingMaterialId = null;
+    state.materialDraftId = null;
     $("#materialDialog .modal-head h2").textContent = "上传素材";
     $("#materialForm").reset();
     $("#materialRating").value = "0";
