@@ -1042,12 +1042,12 @@
   }
 
   function saveLocalSnapshot() {
-    localStorage.setItem("pm.todos", JSON.stringify(state.todos));
-    localStorage.setItem("pm.goals", JSON.stringify(state.goals));
-    localStorage.setItem("pm.materials", JSON.stringify(state.materials));
-    localStorage.setItem("pm.ideas", JSON.stringify(state.ideas));
-    localStorage.setItem("pm.docs", JSON.stringify(state.docs));
-    localStorage.setItem("pm.materialMemory", JSON.stringify(state.memory));
+    setLocalStorageSafely("pm.todos", JSON.stringify(state.todos));
+    setLocalStorageSafely("pm.goals", JSON.stringify(state.goals));
+    setLocalStorageSafely("pm.materials", JSON.stringify(state.materials));
+    setLocalStorageSafely("pm.ideas", JSON.stringify(state.ideas));
+    setLocalStorageSafely("pm.docs", JSON.stringify(state.docs));
+    setLocalStorageSafely("pm.materialMemory", JSON.stringify(state.memory));
     writeLocalBackupSnapshot({
       todos: state.todos,
       goals: state.goals,
@@ -1060,13 +1060,115 @@
 
   function writeLocalBackupSnapshot(snapshot, reason = "auto") {
     if (!hasAnyLocalData(snapshot)) return;
-    localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify({
+    const backup = {
       version: 1,
       reason,
       savedAt: new Date().toISOString(),
-      data: snapshot
-    }));
+      data: createLightweightBackupSnapshot(snapshot)
+    };
+    try {
+      localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify(backup));
+    } catch (error) {
+      console.warn("Local backup skipped:", error.message);
+      try {
+        localStorage.removeItem(LOCAL_BACKUP_KEY);
+        localStorage.setItem(LOCAL_BACKUP_KEY, JSON.stringify({
+          ...backup,
+          reason: `${reason}-minimal`,
+          data: createMinimalBackupSnapshot(snapshot)
+        }));
+      } catch (minimalError) {
+        console.warn("Minimal local backup skipped:", minimalError.message);
+        localStorage.removeItem(LOCAL_BACKUP_KEY);
+      }
+    }
     updateSafetyUI();
+  }
+
+  function createLightweightBackupSnapshot(snapshot) {
+    return {
+      todos: snapshot.todos || [],
+      goals: snapshot.goals || [],
+      materials: (snapshot.materials || []).map(stripHeavyMaterialFields),
+      ideas: (snapshot.ideas || []).map(stripHeavyIdeaFields),
+      docs: snapshot.docs || [],
+      memory: stripHeavyMemoryFields(snapshot.memory)
+    };
+  }
+
+  function createMinimalBackupSnapshot(snapshot) {
+    return {
+      todos: snapshot.todos || [],
+      goals: snapshot.goals || [],
+      materials: (snapshot.materials || []).map((item) => ({
+        id: item.id,
+        title: item.title,
+        project: item.project,
+        scriptType: item.scriptType,
+        scriptLink: item.scriptLink,
+        storageUrl: item.storageUrl,
+        finalName: item.finalName,
+        scriptStatus: item.scriptStatus,
+        progress: item.progress,
+        acceptanceNode: item.acceptanceNode,
+        vendor: item.vendor,
+        tags: item.tags,
+        date: item.date,
+        belongDate: item.belongDate,
+        rating: item.rating,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        statusUpdatedAt: item.statusUpdatedAt
+      })),
+      ideas: (snapshot.ideas || []).map(({ images, ...idea }) => idea),
+      docs: snapshot.docs || [],
+      memory: stripHeavyMemoryFields(snapshot.memory)
+    };
+  }
+
+  function stripHeavyMaterialFields(item = {}) {
+    const stripped = {
+      ...item,
+      cover: isInlineDataUrl(item.cover) ? "" : item.cover,
+      metricPreview: "",
+      assets: normalizedAssets(item).map((asset) => ({
+        ...asset,
+        cover: isInlineDataUrl(asset.cover) ? "" : asset.cover,
+        file: undefined
+      }))
+    };
+    delete stripped.file;
+    delete stripped.videoFile;
+    return stripped;
+  }
+
+  function stripHeavyIdeaFields(idea = {}) {
+    return {
+      ...idea,
+      pastedImage: "",
+      imagePreview: "",
+      images: ideaImageEntries(idea).map((image) => ({
+        key: image.key,
+        name: image.name,
+        type: image.type,
+        createdAt: image.createdAt
+      }))
+    };
+  }
+
+  function stripHeavyMemoryFields(memory = {}) {
+    const normalized = normalizeMemory(memory);
+    return {
+      ...normalized,
+      profile: {
+        ...normalized.profile,
+        avatarData: isInlineDataUrl(normalized.profile?.avatarData) ? "" : normalized.profile?.avatarData
+      }
+    };
+  }
+
+  function isInlineDataUrl(value) {
+    return typeof value === "string" && value.startsWith("data:");
   }
 
   function bindNavigation() {
@@ -4073,9 +4175,30 @@
   }
 
   function save(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
+    setLocalStorageSafely(key, JSON.stringify(value));
     writeLocalBackupSnapshot(readPrimaryLocalSnapshot(), key);
     persistCloud(key, value);
+  }
+
+  function setLocalStorageSafely(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      if (!isStorageQuotaError(error)) throw error;
+      localStorage.removeItem(LOCAL_BACKUP_KEY);
+      try {
+        localStorage.setItem(key, value);
+      } catch (retryError) {
+        if (!isStorageQuotaError(retryError)) throw retryError;
+        throw new Error("浏览器本地空间已满：本次保存没有完成。建议先下载备份，或清理旧的视频/图片缓存后再试。");
+      }
+    }
+  }
+
+  function isStorageQuotaError(error) {
+    return error?.name === "QuotaExceededError"
+      || error?.name === "NS_ERROR_DOM_QUOTA_REACHED"
+      || /quota|exceeded/i.test(error?.message || "");
   }
 
   function escapeHtml(value) {
