@@ -201,11 +201,12 @@
                     <h2>月度脚本概览</h2>
                   </div>
                   <div class="month-controls">
+                    <label>统计方式<select id="statsMonthMode"><option value="calendar">自然月</option><option value="14th">每月14日起</option></select></label>
                     <label>归属月<select id="statsMonth"></select></label>
                   </div>
                 </div>
                 <div class="stats-grid compact-stats-grid">
-                  <article class="stat-card total"><span>产出</span><strong id="monthlyScriptCount">0</strong><small>所选月</small></article>
+                  <article class="stat-card total"><span>产出</span><strong id="monthlyScriptCount">0</strong><small>所选周期</small></article>
                   <article class="stat-card approved"><span>通过</span><strong id="monthlyApprovedScriptCount">0</strong><small id="monthlyPassRate">0%</small></article>
                   <article class="stat-card rejected"><span>未通过</span><strong id="monthlyRejectedScriptCount">0</strong><small>脚本状态</small></article>
                   <article class="stat-card accepted"><span>已验收</span><strong id="monthlyAcceptedMaterialCount">0</strong><small>回收完成</small></article>
@@ -215,7 +216,7 @@
                   <div class="stats-rate-item acceptance-rate"><span>验收率</span><strong id="monthlyAcceptanceRate">0%</strong></div>
                 </div>
                 <div class="weekly-vendor-panel compact-vendor-panel">
-                  <h3>所选月供应商分布</h3>
+                  <h3>所选周期供应商分布</h3>
                   <div class="vendor-list" id="monthlyVendorList"></div>
                 </div>
               </section>
@@ -634,7 +635,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260611-material-open-state"></script>
-    <script src="app.js?v=20260803-draft-save"></script>
+    <script src="app.js?v=20261014-cycle-stats"></script>
   </body>
 </html>
 

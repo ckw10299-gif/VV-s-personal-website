@@ -58,6 +58,7 @@
     docTagFilter: "",
     statsWeek: getWeekRangeLabel(toISODate(new Date())),
     statsMonth: getMonthLabel(toISODate(new Date())),
+    statsMonthMode: "calendar",
     reviewDimension: "project",
     reviewWeek: "",
     reportWeek: getWeekRangeLabel(toISODate(new Date())),
@@ -1480,6 +1481,14 @@
   }
 
   function initMaterialStatsControls() {
+    $("#statsMonthMode").addEventListener("change", (event) => {
+      state.statsMonthMode = event.target.value;
+      state.statsMonth = state.statsMonthMode === "14th"
+        ? getFourteenthCycle(toISODate(new Date())).key
+        : getMonthLabel(toISODate(new Date()));
+      renderMaterialFilterOptions();
+      renderMaterialStats();
+    });
     $("#statsMonth").addEventListener("change", (event) => {
       state.statsMonth = event.target.value;
       renderMaterialStats();
@@ -2445,7 +2454,9 @@
     renderVendorList("#allVendorList", state.materials);
     $("#allVendorSummaryCount").textContent = `${vendorRows(state.materials).length} 个供应商`;
 
-    const monthly = state.materials.filter((item) => getMaterialMonthLabel(item) === state.statsMonth);
+    const monthly = state.materials.filter((item) => (state.statsMonthMode === "14th"
+      ? getFourteenthCycle(getMaterialBelongDate(item)).key
+      : getMaterialMonthLabel(item)) === state.statsMonth);
     const monthlyApproved = monthly.filter((item) => isScriptApproved(item.scriptStatus)).length;
     const monthlyRejected = monthly.filter((item) => isScriptRejected(item.scriptStatus)).length;
     const monthlyAccepted = monthly.filter((item) => normalizeProgress(item.progress).recovered).length;
@@ -2575,8 +2586,20 @@
       .map(([label]) => [label, label]);
   }
 
+  function getFourteenthCycle(dateValue) {
+    const date = new Date(`${dateValue}T12:00:00`);
+    const start = new Date(date.getFullYear(), date.getMonth() - (date.getDate() < 14 ? 1 : 0), 14);
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 14);
+    const key = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-14`;
+    return { key, label: `${start.getFullYear()}年 ${start.getMonth() + 1}.14–${end.getMonth() + 1}.14` };
+  }
+
   function renderMaterialFilterOptions() {
-    const monthOptions = uniqueValues([
+    const cycleMap = new Map([toISODate(new Date()), ...state.materials.map(getMaterialBelongDate)]
+      .map((date) => { const cycle = getFourteenthCycle(date); return [cycle.key, cycle.label]; }));
+    const monthOptions = state.statsMonthMode === "14th"
+      ? [...cycleMap.entries()].sort(([a], [b]) => b.localeCompare(a))
+      : uniqueValues([
       getMonthLabel(toISODate(new Date())),
       ...state.materials.map(getMaterialMonthLabel)
     ]).map((value) => [value, value]);

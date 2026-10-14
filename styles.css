@@ -1366,7 +1366,18 @@ h3 { font-size: 17px; }
 .month-controls {
   display: flex;
   align-items: end;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 8px;
+}
+
+.dashboard-block:has(#statsMonth) .dashboard-controls {
+  flex-wrap: wrap;
+}
+
+#statsMonth {
+  width: 160px;
+  max-width: 100%;
 }
 
 .month-controls label {
